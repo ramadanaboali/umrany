@@ -41,3 +41,12 @@ Always run the rollback once locally to prove `down()` is correct before conside
 ## 5. Data-affecting migrations
 
 If the migration needs to backfill or transform existing data (not just add schema), do that in a **separate seeder or one-off command**, not inside the migration's `up()` — migrations should stay schema-only so they stay fast and safe to run in CI/production without side effects.
+
+## 6. Update the docs (not optional — root `CLAUDE.md` Rule 5)
+
+A new table or column is a new (or changed) entity — update, in the same change:
+
+- `Modules/<Module>/CLAUDE.md`'s entity bullet list.
+- `docs/modules/<module-alias>.md`'s fuller entity/field description.
+
+If nothing outside the migration file itself changed conceptually (e.g. just adding an index to an already-documented column), no doc update is needed — don't pad docs restating what's already there.

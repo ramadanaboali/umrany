@@ -87,3 +87,5 @@ The first full release of Umrany includes four fully integrated business product
 The platform also includes a comprehensive **Administration Portal** covering users, providers, subscriptions, payments, verification, reports, dynamic pages, SEO management, notifications, AI configuration, platform settings, and role-based permissions.
 
 The platform is designed to support responsive web applications, mobile applications, multiple languages, multiple currencies, and future expansion into additional countries while maintaining a unified and scalable architecture.
+
+For the order these four products (plus Admin) actually get built in, and why, see `docs/business/roadmap.md`.

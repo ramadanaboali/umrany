@@ -48,3 +48,8 @@ docker compose exec app php artisan horizon:status
 docker compose logs -f horizon
 ```
 Dispatch it once locally and confirm it appears under the right supervisor/queue in the Horizon dashboard (`/horizon`), not stuck in `default`.
+
+## 7. Update the docs (not optional — root `CLAUDE.md` Rule 5)
+
+- New `config/horizon.php` supervisor entry, or a new `<module>-<priority>` combination → add it to the queue-naming examples in `docs/architecture/infrastructure.md` § Naming conventions if it's a genuinely new pattern (not just another job on an already-documented queue).
+- If the job represents a new workflow worth knowing about (e.g. a new async step in a module's lifecycle) → add it to that module's `docs/modules/<module-alias>.md` workflow section.

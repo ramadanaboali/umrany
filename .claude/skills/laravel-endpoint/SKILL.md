@@ -50,7 +50,13 @@ Add doc-block annotations directly above the controller method:
 
 Scribe auto-matches every route under `api/*` (see `config/scribe.php`) — no per-module config needed, just keep doc-blocks accurate. Regenerate locally with `docker compose exec app php artisan scribe:generate` and spot-check `/docs`.
 
-## 6. Test it
+## 6. Update the module docs (not optional — root `CLAUDE.md` Rule 5)
+
+- If this endpoint introduces a new entity/field, add it to `Modules/<Module>/CLAUDE.md`'s entity list **and** `docs/modules/<module-alias>.md`.
+- If this endpoint establishes a new *pattern* (not just another CRUD endpoint using existing conventions — e.g. a new pagination style, a new error shape, a new auth flow), update `docs/api/conventions.md` too.
+- If it's genuinely just one more endpoint following patterns already documented, no doc change is needed beyond the Scribe doc-block from step 5 — don't pad docs with restating what's already covered.
+
+## 7. Test it
 
 Write the Pest feature test in the generated `<Name>Test.php` (`Modules/<Module>/tests/Feature/`): happy path, one authorization-denied case, one validation-failure case. Run:
 
@@ -58,8 +64,9 @@ Write the Pest feature test in the generated `<Name>Test.php` (`Modules/<Module>
 docker compose exec app ./vendor/bin/pest --filter=<Name>Test
 ```
 
-## 7. Before considering it done
+## 8. Before considering it done
 
 - `composer lint` (Pint) and `composer analyse` (Larastan) clean.
 - No direct cross-module model usage introduced (step 1 rule).
 - If this endpoint reads/writes anything cacheable, follow the `umrany:<module>:<entity>:<id>` key convention from root `CLAUDE.md`.
+- Docs from step 6 actually updated, not just considered — run `.claude/skills/docs-sync-check` if unsure.

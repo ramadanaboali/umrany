@@ -39,3 +39,8 @@ docker/**/data
 umrany-app.tar
 rr
 .rr.yaml
+
+# Scribe: intro.md/auth.md/endpoints/*.yaml are meant to be committed (support manual
+# doc overrides that survive regeneration) — only the pure cache artifacts are ignored.
+/.scribe/endpoints.cache
+/.scribe/.filehashes

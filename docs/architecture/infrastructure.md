@@ -2,19 +2,21 @@
 
 ## docker-compose topology
 
-Everything runs from the same application image (`umrany-app:local`, built from `docker/app/Dockerfile`: PHP 8.4-cli-bookworm with pdo_pgsql, pgsql, intl, zip, bcmath, pcntl, sockets, opcache with JIT enabled, exif, gd, redis, and igbinary extensions compiled in). The services differ only in the command they run against that shared image.
+Everything runs from the same application image (`umrany_app:local`, built from `docker/app/Dockerfile`: PHP 8.4-cli-bookworm with pdo_pgsql, pgsql, intl, zip, bcmath, pcntl, sockets, opcache with JIT enabled, exif, gd, redis, and igbinary extensions compiled in). The services differ only in the command they run against that shared image.
 
-| Service | Runs | Port | Notes |
-|---|---|---|---|
-| `app` | `php artisan octane:start --server=roadrunner --host=0.0.0.0 --port=8000` | 8000 | The Octane/RoadRunner HTTP worker pool; handles all `/api/v1/*` traffic. |
-| `horizon` | `php artisan horizon` | — (no exposed port) | Supervises Redis-backed queue workers; dashboard is served through the `app` container at `/horizon`, not a separate port. |
-| `reverb` | `php artisan reverb:start --host=0.0.0.0 --port=8080` | 8080 | WebSocket server for realtime broadcast (chat, live order/bid updates). |
-| `scheduler` | `sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"` | — | Polls the Laravel scheduler every 60s; no built-in cron daemon in the container, so this loop is it. |
-| `nginx` | `nginx:1.27-alpine` reverse proxy | 80 | Routes `/app/*` (the Reverb WebSocket upgrade path) to `reverb`; everything else to the `app` upstream. This is the single entry point clients (web, admin, mobile) actually hit. |
-| `postgres` | `postgres:15-alpine` | 5434→5432 | System of record for all five modules; one schema, no per-module DB isolation. Host port is 5434 (not the default 5432) to avoid clashing with a locally-running Postgres on the host; the app talks to it over the internal Docker network at `postgres:5432` regardless — `DB_PORT=5432` in `.env` is the in-network port, not the host-mapped one. Chosen over the source doc's suggested MySQL 8 — see `docs/decisions/0005-postgresql-over-mysql.md`. |
-| `redis` | `redis:7.2-alpine` | 6379 | Backs both the Horizon queue driver and the application cache. Accessed via phpredis + igbinary (see `tech-stack.md`). |
+| Service | Container name | Runs | Port | Notes |
+|---|---|---|---|---|
+| `app` | `umrany_app` | `php artisan octane:start --server=roadrunner --host=0.0.0.0 --port=8000` | 8000 | The Octane/RoadRunner HTTP worker pool; handles all `/api/v1/*` traffic. |
+| `horizon` | `umrany_horizon` | `php artisan horizon` | — (no exposed port) | Supervises Redis-backed queue workers; dashboard is served through the `app` container at `/horizon`, not a separate port. |
+| `reverb` | `umrany_reverb` | `php artisan reverb:start --host=0.0.0.0 --port=8080` | 8080 | WebSocket server for realtime broadcast (chat, live order/bid updates). |
+| `scheduler` | `umrany_scheduler` | `sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"` | — | Polls the Laravel scheduler every 60s; no built-in cron daemon in the container, so this loop is it. |
+| `nginx` | `umrany_nginx` | `nginx:1.27-alpine` reverse proxy | 80 | Routes `/app/*` (the Reverb WebSocket upgrade path) to `reverb`; everything else to the `app` upstream. This is the single entry point clients (web, admin, mobile) actually hit. |
+| `postgres` | `umrany_postgres` | `postgres:15-alpine` | 5434→5432 | System of record for all five modules — one schema (`umrany`, not `public`; see `docs/decisions/0006-dedicated-postgres-schema.md`), no per-module DB isolation. Host port is 5434 (not the default 5432) to avoid clashing with a locally-running Postgres on the host; the app talks to it over the internal Docker network at `postgres:5432` regardless — `DB_PORT=5432` in `.env` is the in-network port, not the host-mapped one. Chosen over the source doc's suggested MySQL 8 — see `docs/decisions/0005-postgresql-over-mysql.md`. |
+| `redis` | `umrany_redis` | `redis:7.2-alpine` | 6379 | Backs both the Horizon queue driver and the application cache. Accessed via phpredis + igbinary (see `tech-stack.md`). |
 
 `app`, `horizon`, `reverb`, and `scheduler` all depend on `postgres` (health-checked) and `redis` (service-started) before booting. Only `app`, `reverb`, and `nginx` publish ports to the host; `horizon` and `scheduler` are internal-only processes reached through the `app` container (Horizon's dashboard) or not reached directly at all (`scheduler`).
+
+Container names are pinned via `container_name:` in `docker-compose.yml` (all prefixed `umrany_`) rather than left to Compose's auto-generated `<project>-<service>-<index>` naming — this is purely for `docker ps`/`docker logs` readability; `docker compose` commands (`up`, `exec`, `logs`, etc.) still address services by their short name (`app`, `postgres`, ...) regardless. Volumes are similarly pinned to `umrany_postgres_data` and `umrany_redis_data`.
 
 ## Dev/ops tooling served through the `app` container
 

@@ -52,6 +52,19 @@ Octane workers stay booted across requests **and across a `composer require`/new
 
 See [docs/architecture/infrastructure.md](docs/architecture/infrastructure.md).
 
+## Rule 5 — docs and CLAUDE.md files stay in sync with the code, in the same change
+
+Documentation in this repo is treated as load-bearing, not optional extra credit — a future Claude session (or engineer) is told to trust `docs/` over guessing, so stale docs actively mislead. **When you change something docs describe, update the doc in the same turn you make the change, not "later."** Concretely:
+
+- New/changed entity, table, or workflow in a module → update that `Modules/<Name>/CLAUDE.md`'s entity list/workflow section **and** the fuller `docs/modules/<name>.md`.
+- New/changed API convention (auth, envelope shape, versioning, error format) → `docs/api/conventions.md`.
+- New/changed architectural decision (a package swap, a new service, an infra change) → add or update a `docs/decisions/NNNN-*.md` ADR, and touch `docs/architecture/*.md` if the topology/tech-stack tables describe it.
+- New/changed cross-module contract, event, or the entitlement pattern → `docs/architecture/module-boundaries.md`.
+- New skill-worthy repeatable workflow → consider whether `.claude/skills/` needs a new or updated `SKILL.md`, and whether this file's **Skills** list below needs the new entry.
+- Business-facing change (revenue model, product scope, personas) → `docs/business/*.md`.
+
+If you're not sure a doc needs updating, err toward checking `docs/` for anything that mentions what you just touched (`grep -rl <keyword> docs/ Modules/*/CLAUDE.md`) rather than skipping the check. Before considering a task "done," run `.claude/skills/docs-sync-check` on what you changed.
+
 ## Commands (everything runs through Docker)
 
 ```bash
@@ -69,6 +82,7 @@ docker compose logs -f app horizon reverb
 ## Where to look next
 
 - New business context or a requirement you're unsure about → `docs/business/`
+- What order to build things in, and why → `docs/business/roadmap.md`
 - "Why is it structured this way" → `docs/architecture/`
 - Request/response shape, auth, versioning, health-check endpoints → `docs/api/conventions.md`
 - Entity list and workflows for the module you're touching → `Modules/<Name>/CLAUDE.md`
@@ -80,3 +94,4 @@ docker compose logs -f app horizon reverb
 - `.claude/skills/laravel-migration` — safe migration workflow (reversibility, indexes, FKs, module placement).
 - `.claude/skills/laravel-job` — queued Job wired to the correct Horizon supervisor/queue for its module.
 - `.claude/skills/module-boundary-check` — pre-merge check for cross-module Eloquent/namespace leaks.
+- `.claude/skills/docs-sync-check` — pre-merge check that `docs/`/`CLAUDE.md` files were actually updated to match what the code changed (Rule 5). Run it before considering any non-trivial change done.

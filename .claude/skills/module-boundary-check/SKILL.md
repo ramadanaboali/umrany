@@ -47,3 +47,7 @@ For each real violation found, state: the file/line, which module boundary it cr
 ## 5. If you're the one introducing the coupling
 
 Before writing code that would trigger this check, ask: does this belong in `Modules/Core` instead? If two business modules both need the same concept (e.g. "wallet balance", "verified provider status"), that's a signal the concept is platform-shared and belongs in Core, not that one module should import the other.
+
+## 6. If you fixed a violation, update the docs (not optional — root `CLAUDE.md` Rule 5)
+
+If step 4's fix introduced a genuinely new `Contracts` interface or `Core` event (not just reused an existing one), add it to `docs/architecture/module-boundaries.md` so the next person doesn't have to rediscover it by reading code.
