@@ -26,5 +26,16 @@ Homestead.json
 /storage/pail
 .env.backup
 .env.production
+.env.testing
 .phpactor.json
 auth.json
+/.phpunit.cache
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
+docker/**/data
+umrany-app.tar
+rr
+.rr.yaml

@@ -1,0 +1,77 @@
+name: umrany
+
+x-app-image: &app-image
+  build:
+    context: .
+    dockerfile: docker/app/Dockerfile
+  image: umrany-app:local
+  working_dir: /var/www/html
+  volumes:
+    - .:/var/www/html
+  env_file:
+    - .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  app:
+    <<: *app-image
+    ports:
+      - "8000:8000"
+
+  horizon:
+    <<: *app-image
+    command: php artisan horizon
+    ports: []
+
+  reverb:
+    <<: *app-image
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "8080:8080"
+
+  scheduler:
+    <<: *app-image
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    ports: []
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - .:/var/www/html:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+      - reverb
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-umrany}
+      POSTGRES_USER: ${DB_USERNAME:-umrany}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-umrany}
+    volumes:
+      - umrany-postgres:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-umrany} -d ${DB_DATABASE:-umrany}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    volumes:
+      - umrany-redis:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  umrany-postgres:
+  umrany-redis:
