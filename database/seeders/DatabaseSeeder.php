@@ -2,24 +2,31 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Modules\AI\Database\Seeders\AIDatabaseSeeder;
+use Modules\Core\Database\Seeders\CoreDatabaseSeeder;
+use Modules\ECommerce\Database\Seeders\ECommerceDatabaseSeeder;
+use Modules\ERP\Database\Seeders\ERPDatabaseSeeder;
+use Modules\Projects\Database\Seeders\ProjectsDatabaseSeeder;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Seed the application's database. Every module seeder listed here must itself be
+     * idempotent (updateOrCreate/firstOrCreate) — this runs on every container boot via
+     * docker/app/entrypoint.sh, not just once. See docs/architecture/infrastructure.md.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            CoreDatabaseSeeder::class,
+            ProjectsDatabaseSeeder::class,
+            ECommerceDatabaseSeeder::class,
+            ERPDatabaseSeeder::class,
+            AIDatabaseSeeder::class,
         ]);
     }
 }

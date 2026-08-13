@@ -8,6 +8,17 @@ This document is the reference for the ten sub-areas of platform functionality t
 sub-area's business objective, key entities/concepts, and key functional requirements, followed by
 the API group prefix as stated in the source specification.
 
+**Implementation status**: this document describes the full target domain from the source
+specification — most of it is not built yet. Auth, Profile, and Provider (manual verification
+only, no government-CR integration) are implemented and tested; Admin's dynamic RBAC foundation
+(`Admin`/`Role`/`Permission` on the `admin` guard, Super Admin bypass, admin/role management
+screens) is implemented as a Blade dashboard at the application root, not inside this module — see
+`docs/architecture/admin-portal.md`. Subscription, Verification's government-integration path,
+Chat, Notification, Finance, Reports, and the rest of Admin (CMS/SEO, `SystemSetting`, `AuditLog`,
+internal CRM) are still just this document's target-domain description. `Modules/Core/CLAUDE.md`'s
+"Implementation status" line and "What's actually implemented" section are the quick-reference
+version of this same fact — check there first.
+
 ---
 
 ## Auth (Authentication & Account Management)

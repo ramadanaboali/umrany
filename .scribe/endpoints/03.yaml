@@ -1,0 +1,236 @@
+name: 'Core / Profile'
+description: ''
+endpoints:
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/v1/core/me/capabilities
+    metadata:
+      custom: []
+      groupName: 'Core / Profile'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'My capabilities'
+      description: |-
+        The computed "which hats does this account wear" read model (Project Owner / Supplier /
+        ERP User are never stored roles — see docs/business/personas.md). UI-hint only: every
+        protected endpoint still independently re-checks entitlement server-side regardless of
+        what this returns.
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"is_provider": true, "provider_verified": false, "has_ecommerce_access": false, "has_erp_access": false, "max_project_offers": 3}}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/v1/core/profile
+    metadata:
+      custom: []
+      groupName: 'Core / Profile'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'View profile'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"id": 1, "full_name": "Ahmed Al-Otaibi", "email": "ahmed@example.com"}}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - DELETE
+    uri: api/v1/core/profile/avatar
+    metadata:
+      custom: []
+      groupName: 'Core / Profile'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Remove avatar'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 204
+        content: '{}'
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - PUT
+    uri: api/v1/core/profile/language
+    metadata:
+      custom: []
+      groupName: 'Core / Profile'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Set language preference'
+      description: 'FR-PROFILE-005 — the client is expected to switch RTL/LTR based on the returned value.'
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      language:
+        custom: []
+        name: language
+        description: '"ar" or "en".'
+        required: true
+        example: ar
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      language: ar
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"preferred_language": "ar"}}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - PUT
+    uri: api/v1/core/profile/currency
+    metadata:
+      custom: []
+      groupName: 'Core / Profile'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Set currency preference'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      currency_id:
+        custom: []
+        name: currency_id
+        description: ''
+        required: true
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      currency_id: 1
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"preferred_currency": {"id": 1, "code": "SAR"}}}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null

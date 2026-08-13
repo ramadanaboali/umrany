@@ -199,7 +199,10 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default'],
+            // 'core-high' — latency-sensitive Core notifications (verification codes) that block
+            // a user-facing flow. 'core-default' — non-blocking confirmations (password-changed).
+            // See docs/architecture/infrastructure.md § Naming conventions.
+            'queue' => ['default', 'core-high', 'core-default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,

@@ -2,9 +2,18 @@
 
 You are acting as a senior Laravel/PHP engineer on Umrany, a construction-tech SaaS platform. This file is the rules Claude Code must follow in this repo. For *why* the product works this way, read `docs/` rather than asking or guessing — it is kept current on purpose.
 
-## Rule 0 — this is a bare modular skeleton, not a feature build
+## Rule 0 — build only what's been explicitly asked for, phase by phase
 
-This app is intentionally infrastructure-only right now: 5 empty (or near-empty) modules, auth/permission tables, health checks, and the docs/conventions to build on top of. **Do not add business features (real entities, CRUD endpoints, business logic) unless the user explicitly asks for that specific feature in that conversation.** Infrastructure/tooling work (health checks, logging, CI, docs, migrations for framework-level tables) is fine; inventing product functionality speculatively is not. If you're unsure whether something counts as "a feature," ask.
+Per `docs/business/roadmap.md`, Phase 1 (Auth/Profile/Provider identity+verification) and a
+pulled-forward slice of Phase 7 (Admin/RBAC + the admin Blade dashboard) are now built in
+`Modules/Core` and root `app/` — see that module's `CLAUDE.md` "Implementation status" line for
+exactly what exists. `Modules/Projects`, `Modules/ECommerce`, `Modules/ERP`, `Modules/AI`, and
+Core's Subscription/Chat/Notification/Finance/Reports/CMS sub-areas are still bare skeletons.
+**Do not add business features (real entities, CRUD endpoints, business logic) to any of those
+unless the user explicitly asks for that specific feature in that conversation.**
+Infrastructure/tooling work (health checks, logging, CI, docs, migrations for framework-level
+tables) is fine; inventing product functionality speculatively is not. If you're unsure whether
+something counts as "a feature," ask.
 
 ## Product in one breath
 
@@ -24,6 +33,14 @@ This is a modular monolith (`nwidart/laravel-modules`). Full rationale and depen
 
 Each module has its own `CLAUDE.md` with its entity list, workflows, and gotchas — it loads automatically when you're working inside that directory.
 
+**The one exception to "everything lives in `Modules/*`":** the admin dashboard
+(`app/Http/Controllers/Admin`, `resources/views/admin`, `routes/admin.php`) lives at the
+application root, session-authenticated via a separate `admin` guard — see
+[docs/architecture/admin-portal.md](docs/architecture/admin-portal.md) and
+[docs/decisions/0007-in-monolith-blade-admin.md](docs/decisions/0007-in-monolith-blade-admin.md)
+for why. Its data/RBAC model (`Admin`, roles, permissions) is still Core-owned; only the UI layer
+sits outside the module tree, and it still only depends on Core the way every module does.
+
 ## Rule 1 — module boundaries (Core-only dependency)
 
 A module may depend on `Modules/Core` contracts/events. **Two business modules never reach into each other's Eloquent models directly.** Cross-module communication goes through `Modules/Core/app/Events` (domain events) or an explicit `Contracts` interface the owning module binds in its service provider. If you're about to `use Modules\ECommerce\...` from inside `Modules/ERP`, stop — that's a boundary violation; run `.claude/skills/module-boundary-check` before you open a PR.
@@ -36,11 +53,14 @@ A customer can buy ERP without ECommerce, ECommerce without Projects, etc. **Nev
 
 - `declare(strict_types=1)` in every new PHP file.
 - Style: `composer lint` (Pint) before committing. Static analysis: `composer analyse` (Larastan) must be clean.
-- Controllers stay thin: **FormRequest → Action class → API Resource**. No business logic in controllers, no validation logic outside FormRequests.
-- Authorization via Policies + `spatie/laravel-permission` roles/permissions. Never `if ($user->role === 'admin')`.
+- Controllers stay thin: **FormRequest → Service (calling a Repository) → API Resource**. No business logic in controllers, no validation logic outside FormRequests, no inline Eloquent queries in a Service for anything a Repository already owns. Full layering rationale (Gateway/Orchestration/Service/Repository, where caching and auth each belong): [docs/architecture/backend-layering.md](docs/architecture/backend-layering.md).
+- Authorization via Policies + `spatie/laravel-permission` roles/permissions. Never `if ($user->role === 'admin')`. `spatie/laravel-permission`'s `HasRoles` is reserved for `Modules\Core\Models\Admin` (the `admin` guard) only — never add it to `App\Models\User`. End-user capability (Project Owner/Supplier/ERP User) is computed, never stored — see [docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md) § User capability resolution.
 - Every new endpoint needs: a Pest feature test, and Scribe-compatible doc-blocks (`@group`, `@bodyParam`, `@response`) so `/docs` stays accurate — see [docs/api/conventions.md](docs/api/conventions.md).
 - Redis cache keys: `umrany:<module>:<entity>:<id>`. Horizon queues: `<module>-<priority>` (e.g. `ecommerce-high`, `ai-low`). Reverb channels: `private-<module>.<entity>.<id>`.
 - Don't build abstractions the current task doesn't need. Three similar lines beat a premature interface.
+- A trusted `Service`/`Repository` class setting a column deliberately excluded from a model's `#[Fillable(...)]` (e.g. `status`, `is_super_admin`, a foreign key the client must never set directly) must use `Model::forceCreate()`/`$model->forceFill(...)->save()`, never `create()`/`fill()` — the latter silently drops the value with no error. Doesn't apply inside `database/factories/*`; Eloquent factories bypass the guard internally.
+- Queued **listeners** (`implements ShouldQueue` on a class handling an event) use a different wiring convention than Jobs/Notifications: the queue name comes from a `viaQueue(): string` **method**, retry count from a `tries(): int` method — a plain `public $queue`/`$tries` property is silently ignored. Notifications and Jobs *do* use plain properties (`public $queue`, `public int $tries`) via their own `Queueable` trait — don't cross the two conventions.
+- A new module added to `Modules/*` must be added to **both** `databaseMigrationsPath` and `configDirectories` in `phpstan.neon`, or every new column/config value in that module's own `database/migrations`/`config` reads as a false-positive Larastan error unrelated to the actual code.
 
 ## Rule 4 — the Octane persistent-worker gotcha
 
@@ -49,6 +69,9 @@ Octane workers stay booted across requests **and across a `composer require`/new
 - Never put request/container state into a `singleton()` binding — use `scoped()` for anything per-request.
 - After adding routes/classes/config or requiring a new package while the stack is already running: `docker compose exec app php artisan octane:reload` first; if that errors or the container already crashed, `docker compose up -d app horizon reverb scheduler` to get fresh processes, then `docker compose restart nginx` (nginx caches the app container's IP and won't reconnect after a recreate on its own).
 - Enabling/disabling a module or changing `config/modules.php` requires the same reload — not just `cache:clear`.
+- In practice, `octane:reload` has not reliably picked up new routes/classes within the same debugging session — a full `docker compose restart app` has, every time. Don't spend long debugging "why isn't my change showing up" before trying a full restart.
+- The `admin` session guard's per-request `Auth::shouldUse()` mutation does **not** leak across requests in the same worker — `config/octane.php`'s `FlushAuthenticationState` listener resets it. Verified directly during implementation, not assumed; see `docs/architecture/admin-portal.md`.
+- **`docker compose restart app` is NOT enough after editing `.env`.** Code/route/class changes are read fresh from the bind-mounted volume on any process restart, but `env_file: .env` values are injected only at container *creation*, not on `restart`. A changed `.env` value (confirmed directly: a corrected `MAIL_MAILER`/`MAIL_HOST` still resolved to the old value after `restart`) needs `docker compose up -d --force-recreate app` (or `up -d` after the compose file itself changed) to actually take effect.
 
 See [docs/architecture/infrastructure.md](docs/architecture/infrastructure.md).
 
@@ -65,6 +88,16 @@ Documentation in this repo is treated as load-bearing, not optional extra credit
 
 If you're not sure a doc needs updating, err toward checking `docs/` for anything that mentions what you just touched (`grep -rl <keyword> docs/ Modules/*/CLAUDE.md`) rather than skipping the check. Before considering a task "done," run `.claude/skills/docs-sync-check` on what you changed.
 
+## Rule 6 — every new Eloquent model gets seed data in the same change
+
+Whenever you add a new model backed by its own table (not a pivot), add or extend that module's seeder in the same change — don't leave a model with zero rows producible outside manual testing. Concretely:
+
+- **Master/reference data** (a fixed or slowly-changing catalog — countries, currencies, categories, permissions) → a dedicated seeder method/class, idempotent (`updateOrCreate`/`firstOrCreate` keyed on a natural key), called from that module's `<Module>DatabaseSeeder`.
+- **A new business entity that needs a realistic example to exercise the feature** (a new Provider sub-entity, a new order status, ...) → extend `DemoUserSeeder` (or the equivalent demo seeder once other modules have one) so the seeded demo account actually exercises the new entity, not just the schema.
+- Every seeder must stay idempotent — it runs on every container boot (`docker/app/entrypoint.sh`, see `docs/architecture/infrastructure.md` § Startup), not once. `create()` is wrong here; `updateOrCreate`/`firstOrCreate` is right.
+- If the new model needs its own permission(s) to be admin-manageable, add them to `PermissionSeeder` in the same change, not speculatively ahead of the screen that uses them (Rule 0).
+- `.claude/skills/laravel-migration` already covers migration mechanics; treat "does this need a seeder" as a standing checklist item every time that skill runs, not a separate ask.
+
 ## Commands (everything runs through Docker)
 
 ```bash
@@ -73,11 +106,17 @@ docker compose exec app php artisan module:make Name    # scaffold a 6th module 
 docker compose exec app php artisan module:make-controller Name Module
 docker compose exec app composer lint                    # Pint
 docker compose exec app composer analyse                 # Larastan
-docker compose exec app ./vendor/bin/pest                # tests (includes Modules/*/tests)
+docker compose exec app ./vendor/bin/pest                # tests (includes Modules/*/tests) — runs isolated sqlite :memory:, see phpunit.xml
+docker compose exec app composer reseed                  # re-run every seeder (idempotent — safe anytime, doesn't drop data)
+docker compose exec app composer sync-permissions        # full admin RBAC rebuild from Modules/Core/config/permissions.php — preserves dashboard-created roles + admin assignments, see SyncPermissionsCommand
+docker compose exec app php artisan core:sync-permissions --attach=<perm> --role=<role>   # ad-hoc attach a permission to a role from the CLI (or --detach); flushes Spatie's permission cache
+docker compose exec app php artisan core:permissions:audit [--sync]   # diff can:<permission> route middleware against the catalog/database; --sync creates any permission a route uses but the DB lacks
 docker compose exec app php artisan horizon:status
 docker compose exec app php artisan scribe:generate       # regenerate /docs after route/doc-block changes
 docker compose logs -f app horizon reverb
 ```
+
+Migrate+seed also run automatically on every `app`/`horizon`/`reverb`/`scheduler` container boot (`docker/app/entrypoint.sh`) — see [docs/architecture/infrastructure.md](docs/architecture/infrastructure.md) § Startup. Every seeder must therefore be idempotent (`updateOrCreate`/`firstOrCreate`), not just safe to run once.
 
 ## Where to look next
 
@@ -87,6 +126,7 @@ docker compose logs -f app horizon reverb
 - Request/response shape, auth, versioning, health-check endpoints → `docs/api/conventions.md`
 - Entity list and workflows for the module you're touching → `Modules/<Name>/CLAUDE.md`
 - Decisions already made and why → `docs/decisions/`
+- Admin dashboard structure, auth, RBAC → `docs/architecture/admin-portal.md`
 
 ## Skills
 

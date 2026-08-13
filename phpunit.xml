@@ -22,19 +22,32 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="BROADCAST_CONNECTION" value="null"/>
-        <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="PULSE_ENABLED" value="false"/>
-        <env name="TELESCOPE_ENABLED" value="false"/>
-        <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!--
+            These MUST be <server> entries, not <env> (even with force="true") — confirmed by
+            direct reproduction, not assumption. docker-compose.yml injects .env via `env_file:`,
+            which sets these as real OS environment variables inside the app container, and this
+            app's env resolution (Laravel's dotenv adapter chain) reads $_SERVER ahead of
+            $_ENV/getenv(). PHPUnit's <env> directive — including force="true", which only
+            affects $_ENV/putenv(), never $_SERVER — silently no-ops against that: without the
+            <server> form below, app()->environment() reports "local" and
+            DB::connection()->getDriverName() reports "pgsql" inside an actual test run, meaning
+            the entire suite was running against the real dev Postgres database instead of an
+            isolated in-memory SQLite one. If this ever needs revisiting, reproduce with a throwaway
+            test that dumps $_SERVER[...]/config('database.default') before changing it back.
+        -->
+        <server name="APP_ENV" value="testing"/>
+        <server name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <server name="BCRYPT_ROUNDS" value="4"/>
+        <server name="BROADCAST_CONNECTION" value="null"/>
+        <server name="CACHE_STORE" value="array"/>
+        <server name="DB_CONNECTION" value="sqlite"/>
+        <server name="DB_DATABASE" value=":memory:"/>
+        <server name="DB_URL" value=""/>
+        <server name="MAIL_MAILER" value="array"/>
+        <server name="QUEUE_CONNECTION" value="sync"/>
+        <server name="SESSION_DRIVER" value="array"/>
+        <server name="PULSE_ENABLED" value="false"/>
+        <server name="TELESCOPE_ENABLED" value="false"/>
+        <server name="NIGHTWATCH_ENABLED" value="false"/>
     </php>
 </phpunit>

@@ -42,7 +42,15 @@ Always run the rollback once locally to prove `down()` is correct before conside
 
 If the migration needs to backfill or transform existing data (not just add schema), do that in a **separate seeder or one-off command**, not inside the migration's `up()` — migrations should stay schema-only so they stay fast and safe to run in CI/production without side effects.
 
-## 6. Update the docs (not optional — root `CLAUDE.md` Rule 5)
+## 6. Seed it (not optional — root `CLAUDE.md` Rule 6)
+
+A new table backed by its own Eloquent model needs seed data in the same change — master/reference
+data goes in a dedicated idempotent seeder method (`updateOrCreate`/`firstOrCreate`), a new
+business entity worth demoing extends the module's demo seeder. See root `CLAUDE.md` Rule 6 for
+the full checklist. Don't skip this because the migration itself "looks done" — an empty table
+that only ever gets rows from manual testing is the gap this rule exists to close.
+
+## 7. Update the docs (not optional — root `CLAUDE.md` Rule 5)
 
 A new table or column is a new (or changed) entity — update, in the same change:
 

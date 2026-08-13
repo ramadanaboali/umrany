@@ -53,9 +53,12 @@ RUN git clone --depth 1 https://github.com/phpredis/phpredis.git /tmp/phpredis \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY docker/app/php.ini /usr/local/etc/php/conf.d/99-umrany.ini
+COPY docker/app/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /var/www/html
 
 EXPOSE 8000
 
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["php", "artisan", "octane:start", "--server=roadrunner", "--host=0.0.0.0", "--port=8000"]

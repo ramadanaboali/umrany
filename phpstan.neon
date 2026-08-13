@@ -11,3 +11,29 @@ parameters:
     excludePaths:
         - Modules/*/resources/*
         - vendor/*
+
+    # Larastan's default config only scans the root database/migrations/ for Eloquent property
+    # inference — in this modular monolith every module keeps its own migrations, so without
+    # this every column added by a module migration (not just Core's) reads as an "undefined
+    # property" on that module's models. parseModelCastsMethod is also off by default and this
+    # codebase uses the modern casts(): array method throughout, not the legacy $casts property.
+    databaseMigrationsPath:
+        - database/migrations
+        - Modules/Core/database/migrations
+        - Modules/Projects/database/migrations
+        - Modules/ECommerce/database/migrations
+        - Modules/ERP/database/migrations
+        - Modules/AI/database/migrations
+
+    parseModelCastsMethod: true
+
+    # Same systemic gap as databaseMigrationsPath above — larastan's noEnvCallsOutsideOfConfig
+    # rule only recognizes the root config/ directory as "a config file" by default, so it flags
+    # env() calls inside a module's own config/config.php as if they were application code.
+    configDirectories:
+        - config
+        - Modules/Core/config
+        - Modules/Projects/config
+        - Modules/ECommerce/config
+        - Modules/ERP/config
+        - Modules/AI/config

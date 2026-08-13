@@ -107,7 +107,23 @@ Don't invent alternate error shapes (e.g. `{"error": {...}}` or a custom `code` 
 
 ## Rate limiting
 
-**TODO**: not yet configured per-endpoint. Laravel's default `throttle:api` middleware is present on the `api` middleware group, but limits haven't been tuned for any module's actual traffic shape (e.g. AI endpoints vs. read-heavy marketplace browsing). Treat this as an open item, not a documented guarantee — don't assume any specific requests-per-minute ceiling exists yet.
+Laravel's default `throttle:api` middleware is present on the `api` middleware group for
+everything. Named rate limiters exist for the auth-critical, guessable/enumerable endpoints —
+registered in `app/Providers/AppServiceProvider::boot()`, applied per-route via
+`throttle:<name>` in each module's `routes/api.php`:
+
+| Limiter | Applies to | Limit | Keyed by |
+|---|---|---|---|
+| `login` | `POST /api/v1/core/auth/register`, `.../auth/login` | 5/minute | `login` input + IP |
+| `admin-login` | `POST /admin/login` | 5/minute | email + IP |
+| `verification-code` | `POST /api/v1/core/auth/resend-code` | 1/minute | authenticated user id |
+| `verification-code-consume` | `POST /api/v1/core/auth/verify` | 5/minute | authenticated user id |
+| `password-reset` | `.../auth/forgot-password`, `.../auth/reset-password`, `/admin/forgot-password`, `/admin/reset-password` | 3/minute | IP |
+
+**Still open**: no other endpoint has a limiter beyond the generic `throttle:api` — read-heavy
+browsing endpoints (master data, future Projects/ECommerce listing endpoints) and AI endpoints
+still need traffic-shape-specific tuning once they exist. Don't assume a specific
+requests-per-minute ceiling exists for anything not in the table above.
 
 ## Health checks
 

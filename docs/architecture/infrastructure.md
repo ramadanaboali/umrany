@@ -18,6 +18,27 @@ Everything runs from the same application image (`umrany_app:local`, built from 
 
 Container names are pinned via `container_name:` in `docker-compose.yml` (all prefixed `umrany_`) rather than left to Compose's auto-generated `<project>-<service>-<index>` naming — this is purely for `docker ps`/`docker logs` readability; `docker compose` commands (`up`, `exec`, `logs`, etc.) still address services by their short name (`app`, `postgres`, ...) regardless. Volumes are similarly pinned to `umrany_postgres_data` and `umrany_redis_data`.
 
+## Startup: migrate + seed on every boot
+
+`docker/app/entrypoint.sh` is the image's `ENTRYPOINT`, wrapping whatever `command:` each of the
+four services (`app`, `horizon`, `reverb`, `scheduler`) runs. Before exec-ing that command, it
+runs `php artisan migrate --force --isolated` then `php artisan db:seed --force`, serialized across
+all four services via `flock` on a file in the shared bind-mounted volume (`storage/framework/.boot.lock`)
+— whichever container starts first does the work; the other three block on the same lock, then
+proceed once it's done. Both steps are safe to run on every boot:
+
+- `migrate --isolated` is a no-op if nothing is pending (`--isolated` also protects against two
+  containers racing to run the same pending migration, on top of the `flock` serialization).
+- Every seeder in this project **must** be idempotent (`updateOrCreate`/`firstOrCreate`, never bare
+  `create()` for anything keyed on a natural key) — this is a hard requirement, not a suggestion,
+  since seeders re-run on every `docker compose up`/container restart, not just once. See
+  `Modules/Core/database/seeders/*` for the pattern.
+
+If you add a migration that changes a column an existing row could conflict with (a new `NOT NULL`
+without a default, a new unique constraint), account for the fact that it may run against a
+database that already has real data from a previous boot — same discipline as any production
+migration, just triggered more often here than usual.
+
 ## Dev/ops tooling served through the `app` container
 
 Two things ride on top of the `app` container rather than being separate services:
@@ -37,6 +58,18 @@ Octane boots the Laravel container once per worker and reuses that same booted a
 - When in doubt in a module's service provider, default to `scoped()` — a slightly-more-often-rebuilt object is a much smaller risk than one that silently carries state from one user's request into another user's.
 
 **Separately:** because Octane also caches route and config state across the worker's lifetime, enabling or disabling a module (or otherwise changing `config/modules.php` / module route registration) requires a full worker restart — `php artisan octane:reload` — not just `php artisan cache:clear` or `config:clear`. A `cache:clear` will not pick up a newly enabled/disabled module in an already-running Octane worker.
+
+**In practice, prefer a full restart over `octane:reload` when in doubt.** While building the admin
+portal, `octane:reload` followed immediately by a request did not reliably pick up new
+routes/classes within the same debugging session (workers appeared to still be cycling) — a full
+`docker compose restart app` did, every time. If a change genuinely isn't showing up after
+`octane:reload`, don't assume the change is wrong before trying a full container restart.
+
+**The admin session guard specifically does not leak across workers** — this was a legitimate
+question worth asking (Octane's persistent `AuthManager` singleton gets mutated per-request by
+`Auth::shouldUse()`, per the guard resolution mechanism `docs/architecture/admin-portal.md`
+describes), and it was verified rather than assumed: `config/octane.php`'s `RequestReceived`
+listeners include `FlushAuthenticationState`, which resets that state before every request.
 
 ## Naming conventions
 
@@ -67,3 +100,35 @@ Pattern: `private-<module-alias>.<entity>.<id>`
 - `private-core.chat.8` — a private chat channel scoped to conversation/user 8.
 
 All three conventions exist for the same reason: with five modules touching Redis and Reverb independently, a consistent `<module>` segment is what makes an ad hoc `redis-cli keys 'umrany:ecommerce:*'` or a Horizon queue-length graph filterable by module without cross-referencing code.
+
+## The test suite must run against SQLite `:memory:`, not the real dev database — a Docker-specific `phpunit.xml` gotcha
+
+`phpunit.xml` declares `DB_CONNECTION=sqlite`/`DB_DATABASE=:memory:` (plus `CACHE_STORE=array`,
+`SESSION_DRIVER=array`, `APP_ENV=testing`, ...) specifically so the test suite runs isolated from
+the real database. **This did not actually work as `<env>` entries, even with `force="true"`, and
+the failure mode is silent** — the suite ran, tests passed, and it was quietly hitting the live
+`umrany` Postgres database the entire time, discovered only by adding a throwaway test that
+dumped `DB::connection()->getDriverName()`/`app()->environment()` mid-run.
+
+**Root cause**: `docker-compose.yml`'s `env_file: .env` on the `app` service injects `.env`'s
+values as real OS environment variables inside the container. This app's env-resolution chain
+reads `$_SERVER` ahead of `$_ENV`/`getenv()`. PHPUnit's `<env>` directive — `force="true"` included
+— only ever touches `$_ENV`/`putenv()`, never `$_SERVER`, so it silently loses to the
+Docker-injected value every time. `<server>` entries, by contrast, unconditionally overwrite
+`$_SERVER` and actually work.
+
+**`phpunit.xml`'s `<php>` block must therefore use `<server>`, not `<env>`, for every override that
+needs to actually take effect in this Docker setup.** If this ever needs revisiting (a PHP/PHPUnit
+upgrade, a change to how the container is run outside Docker Compose), reproduce with the same
+throwaway-test technique before trusting that `<env>` (with or without `force`) works — don't
+assume the standard PHPUnit behavior applies unchanged under `env_file:`-based container env
+injection.
+
+One consequence of the suite silently running against the real database for however long that
+went unnoticed: `tests/TestCase.php` also did not use `RefreshDatabase`, so a `users`-table-touching
+test happened to keep passing (it found the table it needed — because that table was real, not
+because the test was correctly isolated). Both are fixed together: `tests/TestCase.php` now
+applies `RefreshDatabase` globally, and `phpunit.xml` uses `<server>`. A test suite that never
+exercises a genuinely empty, freshly-migrated schema can hide exactly the kind of bug a migration
+or a factory default introduces — treat "the suite passes" as meaningless until both of these are
+confirmed correct after any change to test bootstrapping.

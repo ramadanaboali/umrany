@@ -59,6 +59,6 @@ Everything below is installed and was verified working end-to-end this session (
 | Package | Rationale |
 |---|---|
 | `laravel/pint` | Code style, run via `composer lint`. |
-| `larastan/larastan` | Static analysis, run via `composer analyse` — required clean before merge (`conventions.md`). |
+| `larastan/larastan` | Static analysis, run via `composer analyse` — required clean before merge (`conventions.md`). `phpstan.neon`'s `databaseMigrationsPath`/`configDirectories` explicitly list every module's `database/migrations`/`config` — Larastan's own defaults only scan the root ones, so without this every column/config value a module adds reads as a false "undefined property"/`noEnvCallsOutsideOfConfig` finding unrelated to the actual code. Add a new module's paths to both lists in the same change that scaffolds it. |
 | `pestphp/pest` + `pestphp/pest-plugin-laravel` | Test framework; minimum one feature test per endpoint (`conventions.md`). |
 | `barryvdh/laravel-debugbar` | Local/dev-only request/query inspection; not loaded outside the `local` environment. |

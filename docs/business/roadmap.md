@@ -12,9 +12,19 @@ Root `CLAUDE.md` Rule 0 ("bare skeleton, no business features") describes **Phas
 
 Modular monolith skeleton (5 modules), Docker/Octane/RoadRunner/Reverb/Horizon/Postgres/Redis infrastructure, the module-entitlement mechanism (currently a stub that allows everyone — see Phase 2), health checks, log viewer, the full docs/CLAUDE.md/skills system, and Postman/OpenAPI exports. Generates no revenue by itself — it's the platform every later phase builds on, and per Rule 0 nothing past this point should exist yet until a phase below is actually started.
 
-## Phase 1 — Identity & Access
+## Phase 1 — Identity & Access ✅ (mostly complete)
 
 **Core sub-areas:** Auth, Profile, Provider identity, Verification (`docs/modules/core.md`).
+
+**Status:** Registration/login/logout/password reset (via a shared OTP mechanism covering both
+mobile-only and email accounts, not Laravel's email-only broker), session/device listing+revoke,
+profile CRUD (avatar, language, currency, country/city), provider-profile activation, and
+*manual* verification-document submission are built and tested. **Not yet built:** government
+(Saudi CR) verification integration, Portfolio, Certificates, public Provider statistics. The
+`SubscriptionEntitlementChecker`/`UserCapabilityResolver` stubs described in Phase 2 below are also
+in place now (returning the unsubscribed-default shape), so this phase's exit criterion — "a user
+can register, verify, activate a provider identity" — holds even though real subscription data
+doesn't exist yet.
 
 **Why first:** every other phase needs "who is this user, are they verified, what's their profile" — it's a literal dependency of the `auth:sanctum` gate already wrapping every business module's routes, and of `Modules\Core\Contracts\ModuleEntitlementChecker`, which needs a real user to check.
 
@@ -77,6 +87,16 @@ Modular monolith skeleton (5 modules), Docker/Octane/RoadRunner/Reverb/Horizon/P
 ## Phase 7 — Admin portal completeness, reporting, and platform-wide surfaces
 
 **Why not earlier, and why not "in parallel with everything":** every phase above already ships *some* admin surface as an incidental part of doing that phase's job — verification review in Phase 1, billing/plan config in Phase 2, project moderation in Phase 3, settlement/dispute tools in Phase 5. This phase is for what only makes sense once there's real data across *multiple* products to govern and report on: full dynamic RBAC (`Role`/`Permission`/`AdminRole`, action-level permissions, no hard-coded role names), cross-product dashboards and reporting, SEO/CMS (`DynamicPage`/`SeoMetadata`), centralized `SystemSetting`s, `AuditLog`, and the internal `AdminCrmLead`/`AdminCrmActivity` (UMRANY's own sales CRM — distinct from ERP's provider-facing CRM, see Core's entity list).
+
+**A slice of this phase was deliberately pulled forward, alongside Phase 1** — the dynamic
+RBAC foundation itself (`Admin`/`Role`/`Permission` on the `admin` guard, the Super Admin bypass,
+an admin-management screen, a role/permission-management screen) plus the decision to build the
+admin dashboard as an in-monolith Blade app rather than deferring it to a separate future
+application (`docs/decisions/0007-in-monolith-blade-admin.md`). Rationale: RBAC/seeding work is
+unverifiable by anyone without a real UI to log into, and the identity work in Phase 1 has nothing
+to be governed by without it. **Still not built** from this phase: cross-product dashboards
+(there's nothing yet to aggregate — `DashboardController` is deliberately thin), SEO/CMS,
+`SystemSetting`, `AuditLog`, and the internal sales CRM.
 
 **Exit criteria:** an admin holding a custom, admin-created role can operate every business function above without a code deploy; cross-product dashboards exist.
 

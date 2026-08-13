@@ -6,15 +6,16 @@ Umrany's backend is a single Laravel 13 application organized as a **modular mon
 
 The monolith choice is deliberate for this stage of the product: five business domains (project bidding, marketplace, ERP, AI, and the shared platform underneath them) share one team, one release cadence, and heavy cross-domain data (a user's wallet, subscription, and identity are read by every module). Splitting into microservices now would mean re-solving distributed transactions and cross-service auth for no organizational benefit. The module boundaries exist so that if/when a module needs to be extracted into its own service, the seams are already there — see `module-boundaries.md`.
 
-## API-first, no server-rendered UI
+## API-first, no server-rendered UI — except the admin portal
 
-Every module is API-only. There are no Blade views or web routes anywhere in `Modules/*` — each module registers routes exclusively through its `RouteServiceProvider`, mounted under `api/v1/<module-alias>` (e.g. `/api/v1/core/health`, `/api/v1/ecommerce/...`). This repository has no first-party frontend. Three separate client applications, each in its own repository, consume this backend purely over HTTPS/REST (plus WebSockets for realtime):
+Every module is API-only. There are no Blade views or web routes anywhere in `Modules/*` — each module registers routes exclusively through its `RouteServiceProvider`, mounted under `api/v1/<module-alias>` (e.g. `/api/v1/core/health`, `/api/v1/ecommerce/...`). Two separate client applications, each in its own repository, consume this backend purely over HTTPS/REST (plus WebSockets for realtime):
 
 - **Web app** — a Next.js application for project owners and store customers.
-- **Admin portal** — a separate web app for platform operators, RBAC-gated through `spatie/laravel-permission` roles enforced by Core.
 - **Mobile app** — Flutter, targeting iOS and Android, used by contractors/suppliers in the field.
 
-None of these clients get special treatment or a bespoke API shape — they all hit the same versioned `/api/v1/*` surface, authenticate the same way (Sanctum bearer tokens), and are documented the same way (Scribe, see `tech-stack.md`). This is what "API-first" means here in practice: if a feature isn't reachable through `/api/v1/...`, it doesn't exist for any client. New endpoints are added via the `laravel-endpoint` skill so route, FormRequest, Resource, doc-block, and test all land together.
+Both hit the same versioned `/api/v1/*` surface, authenticate the same way (Sanctum bearer tokens), and are documented the same way (Scribe, see `tech-stack.md`). This is what "API-first" means here in practice for these two: if a feature isn't reachable through `/api/v1/...`, it doesn't exist for either client. New endpoints are added via the `laravel-endpoint` skill so route, FormRequest, Resource, doc-block, and test all land together.
+
+**The admin portal is the one deliberate exception**: a session-based Blade dashboard living at the application root (`app/Http/Controllers/Admin`, `resources/views/admin`, `routes/admin.php`) — not inside `Modules/*`, and not a separate repository/app as originally planned. See `docs/decisions/0007-in-monolith-blade-admin.md` for why, and `docs/architecture/admin-portal.md` for the full reference. It authenticates via a distinct session-based `admin` guard (never Sanctum), and its controllers call into `Modules/Core`'s `Actions`/`Contracts` classes in-process rather than through `/api/v1/*` — there is no `/api/v1/admin/*` surface. The module boundary rule still applies to it: an admin screen touching Projects/ECommerce/ERP/AI data goes through that module's `Contracts\...` interface, same as every business module already does with Core.
 
 ## Serving model: Octane on RoadRunner
 

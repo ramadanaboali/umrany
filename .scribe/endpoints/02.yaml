@@ -1,0 +1,725 @@
+name: 'Core / Auth'
+description: ''
+endpoints:
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/register
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: Register
+      description: |-
+        Create an account with a mobile number or email address (at least one is required).
+        Issues a verification code to whichever identifier was provided and returns an API token
+        immediately — the account can authenticate right away, but protected endpoints stay
+        gated behind `account.verified` until the code is confirmed via POST .../auth/verify.
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      name:
+        custom: []
+        name: name
+        description: 'Full name.'
+        required: true
+        example: 'Ahmed Al-Otaibi'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      email:
+        custom: []
+        name: email
+        description: 'Email address. Required if mobile is omitted.'
+        required: false
+        example: ahmed@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      mobile:
+        custom: []
+        name: mobile
+        description: 'Mobile number. Required if email is omitted.'
+        required: false
+        example: '+966501234567'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      password:
+        custom: []
+        name: password
+        description: 'Min 8 chars, mixed case, numbers.'
+        required: true
+        example: Secr3tPass
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      terms_accepted:
+        custom: []
+        name: terms_accepted
+        description: 'Must be true.'
+        required: true
+        example: true
+        type: boolean
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password_confirmation:
+        custom: []
+        name: password_confirmation
+        description: ''
+        required: true
+        example: Secr3tPass
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      name: 'Ahmed Al-Otaibi'
+      email: ahmed@example.com
+      mobile: '+966501234567'
+      password: Secr3tPass
+      terms_accepted: true
+      password_confirmation: Secr3tPass
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 201
+        content: '{"data": {"user": {"id": 1, "name": "Ahmed Al-Otaibi", "email": "ahmed@example.com", "mobile": null, "email_verified": false, "mobile_verified": false, "status": "active"}, "token": "1|abcdef..."}}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/login
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: Login
+      description: 'Authenticate with either the registered mobile number or email address.'
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      login:
+        custom: []
+        name: login
+        description: 'Email or mobile number.'
+        required: true
+        example: ahmed@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password:
+        custom: []
+        name: password
+        description: ''
+        required: true
+        example: Secr3tPass
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      device_name:
+        custom: []
+        name: device_name
+        description: 'Optional label for this session/device.'
+        required: false
+        example: 'iPhone 15'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+    cleanBodyParameters:
+      login: ahmed@example.com
+      password: Secr3tPass
+      device_name: 'iPhone 15'
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"user": {"id": 1}, "token": "1|abcdef..."}}'
+        headers: []
+        description: success
+      -
+        custom: []
+        status: 422
+        content: '{"message": "The given data was invalid.", "errors": {"login": ["These credentials do not match our records."]}}'
+        headers: []
+        description: 'invalid credentials'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/forgot-password
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Forgot password'
+      description: |-
+        Always responds with a generic success message whether or not the identifier matches an
+        account, so this endpoint can never be used to enumerate registered emails/mobiles.
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      login:
+        custom: []
+        name: login
+        description: 'Email or mobile number on the account.'
+        required: true
+        example: ahmed@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      login: ahmed@example.com
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"message": "If that account exists, a reset code has been sent."}'
+        headers: []
+        description: always
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/reset-password
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Reset password'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      login:
+        custom: []
+        name: login
+        description: 'Same identifier used to request the code.'
+        required: true
+        example: ahmed@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      code:
+        custom: []
+        name: code
+        description: ''
+        required: true
+        example: '483920'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password:
+        custom: []
+        name: password
+        description: ''
+        required: true
+        example: NewSecr3t1
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password_confirmation:
+        custom: []
+        name: password_confirmation
+        description: ''
+        required: true
+        example: NewSecr3t1
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      login: ahmed@example.com
+      code: '483920'
+      password: NewSecr3t1
+      password_confirmation: NewSecr3t1
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"message": "Password has been reset. Please sign in again."}'
+        headers: []
+        description: success
+      -
+        custom: []
+        status: 422
+        content: '{"message": "This code is invalid or has expired."}'
+        headers: []
+        description: 'invalid or expired'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/logout
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: Logout
+      description: |-
+        Revokes the token used to authenticate the current request (this device/session only —
+        see .../auth/sessions to revoke others).
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 204
+        content: '{}'
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/verify
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Verify account'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      type:
+        custom: []
+        name: type
+        description: '"email" or "mobile".'
+        required: true
+        example: email
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      code:
+        custom: []
+        name: code
+        description: 'The 6-digit code just received.'
+        required: true
+        example: '483920'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      type: email
+      code: '483920'
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": {"user": {"id": 1, "email_verified": true}}}'
+        headers: []
+        description: success
+      -
+        custom: []
+        status: 422
+        content: '{"message": "This code is invalid or has expired."}'
+        headers: []
+        description: 'invalid or expired'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/v1/core/auth/resend-code
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Resend verification code'
+      description: 'Rate-limited to one request per minute per account — see docs/api/conventions.md.'
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      type:
+        custom: []
+        name: type
+        description: '"email" or "mobile" — must match an identifier already on the account.'
+        required: true
+        example: email
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      type: email
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"message": "Verification code sent."}'
+        headers: []
+        description: success
+      -
+        custom: []
+        status: 422
+        content: '{"message": "This account has no email address on file."}'
+        headers: []
+        description: 'already verified or channel not on account'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - PUT
+    uri: api/v1/core/auth/password
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Change password'
+      description: |-
+        Authenticated equivalent of reset-password — for a user who knows their current password
+        and wants to set a new one, rather than the unauthenticated OTP-based recovery flow above.
+        Revokes every *other* session's token (the one used for this request stays valid). Sends
+        the same email confirmation as a completed reset.
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      current_password:
+        custom: []
+        name: current_password
+        description: ''
+        required: true
+        example: OldSecr3t1
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password:
+        custom: []
+        name: password
+        description: ''
+        required: true
+        example: NewSecr3t1
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      password_confirmation:
+        custom: []
+        name: password_confirmation
+        description: ''
+        required: true
+        example: NewSecr3t1
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      current_password: OldSecr3t1
+      password: NewSecr3t1
+      password_confirmation: NewSecr3t1
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"message": "Password changed."}'
+        headers: []
+        description: success
+      -
+        custom: []
+        status: 422
+        content: '{"message": "The given data was invalid.", "errors": {"current_password": ["The password is incorrect."]}}'
+        headers: []
+        description: 'wrong current password'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/v1/core/auth/sessions
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'List active sessions'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: '{"data": [{"id": 1, "device_name": "api-token", "is_current": true}]}'
+        headers: []
+        description: success
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - DELETE
+    uri: 'api/v1/core/auth/sessions/{id}'
+    metadata:
+      custom: []
+      groupName: 'Core / Auth'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Revoke a session'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer {YOUR_AUTH_KEY}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      id:
+        custom: []
+        name: id
+        description: 'The ID of the session.'
+        required: true
+        example: architecto
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      session:
+        custom: []
+        name: session
+        description: 'The token id from GET .../auth/sessions.'
+        required: true
+        example: 3
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      id: architecto
+      session: 3
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 204
+        content: '{}'
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 404
+        content: '{"message": "No query results for model."}'
+        headers: []
+        description: 'not found or not yours'
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 6g43cv8PD1aE5beadkZfhV6'
+    controller: null
+    method: null
+    route: null

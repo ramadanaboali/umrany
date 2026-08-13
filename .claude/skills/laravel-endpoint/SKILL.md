@@ -25,8 +25,9 @@ docker compose exec app php artisan module:make-test <Name>Test <Module> --pest
 
 - `declare(strict_types=1)`.
 - Controller method signature: `(<Name>Request $request)` — all validation lives in the FormRequest, never inline `$request->validate()`.
-- Business logic goes in an Action class (`Modules/<Module>/app/Actions/`) if it's more than a trivial query — controllers call the action and return a Resource. Don't invent an Action class for a one-line passthrough.
-- Authorize via a Policy (`$this->authorize(...)`) or a `spatie/laravel-permission` gate check — never role-string comparisons.
+- Business logic goes in a Service class (`Modules/<Module>/app/Services/`) if it's more than a trivial query — controllers call the service and return a Resource. Don't invent a Service for a one-line passthrough. See `docs/architecture/backend-layering.md` for the full Gateway/Service/Repository shape.
+- If the Service needs persistence beyond a single trivial lookup, it calls a Repository (`Modules/<Module>/app/Repositories/`, bound via a `Contracts\...RepositoryInterface`) rather than querying Eloquent inline.
+- Authorize via a Policy (`$this->authorize(...)`), route-level `can:<permission>` middleware for pure permission checks with no per-object nuance, or a `spatie/laravel-permission` gate check — never role-string comparisons.
 - Return via the generated API Resource, not raw Eloquent models or arrays.
 
 ## 4. Register the route

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Modules\Core\Models\Admin;
 
 return [
 
@@ -42,6 +43,14 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Session-based, distinct from the API's stateless Sanctum tokens on purpose — the
+        // Blade admin dashboard is the one part of this app that uses classic session/CSRF auth.
+        // See docs/architecture/admin-portal.md.
+        'admin' => [
+            'driver' => 'session',
+            'provider' => 'admins',
+        ],
     ],
 
     /*
@@ -71,6 +80,11 @@ return [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
+
+        'admins' => [
+            'driver' => 'eloquent',
+            'model' => Admin::class,
+        ],
     ],
 
     /*
@@ -96,6 +110,16 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+
+        // Separate email-keyed token table from 'users' above — an email that happens to exist
+        // on both an Admin and a User row must never let one guard's reset flow touch the other's
+        // account. See Modules/Core/database/migrations/*_create_admin_password_reset_tokens_table.
+        'admins' => [
+            'provider' => 'admins',
+            'table' => 'admin_password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,
         ],

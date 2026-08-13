@@ -4,6 +4,13 @@ notifications, finance/wallets, reports, and admin/RBAC for the whole UMRANY pla
 See `docs/modules/core.md` for the full reference (business objectives, FR groupings, source-doc
 API prefixes per sub-area).
 
+**Implementation status**: Auth, Profile, Provider identity/verification (manual documents only —
+no government-CR integration yet), and Admin/RBAC are built and tested (see "What's actually
+implemented" below). Subscription, Chat, Notification, Finance/Wallet, Reports, CMS/SEO,
+`SystemSetting`, `AuditLog`, and the internal sales CRM are still just the target-domain
+description below, not implemented — this is a phased build per `docs/business/roadmap.md`, not a
+gap to fill speculatively.
+
 ## Entities
 
 - User — core account (mobile/email unique, password, terms acceptance, verification/account status)
@@ -116,6 +123,54 @@ reconsider the design (likely needs a new Contract or Event instead).
   and cache round-trip; returns 503 if any fail. `GET /api/v1/core/health` is a plain liveness
   check. Both are intentionally outside `auth:sanctum`/`module.entitlement` — monitors must be able
   to hit them unauthenticated.
+- **Auth** (`Http/Controllers/AuthController`, `SessionController`): register (mobile or email),
+  login, logout, single-device-revoke session listing, resend/verify via a 6-digit OTP code
+  (`Models/VerificationCode`, hashed at rest, capped at 5 guess attempts per code), forgot/reset
+  password via the *same* OTP mechanism rather than Laravel's email-only broker — deliberately, so
+  a mobile-only account (no email on file) can still reset its password. `Enums/VerificationCodePurpose`
+  (`account_verification` vs `password_reset`) is a separate axis from `Enums/VerificationCodeType`
+  (the delivery channel, `email` vs `mobile`) — don't conflate the two when adding a new
+  code-gated flow. Named rate limiters (`login`, `verification-code`,
+  `verification-code-consume`, `password-reset`) are registered in `app/Providers/AppServiceProvider`
+  and applied per-route in `routes/api.php` — see `docs/api/conventions.md` § Rate limiting.
+- **Profile** (`Http/Controllers/ProfileController`, `Models/UserProfile`): view/update
+  (full name, address, country/city with cross-validation that the city belongs to the selected
+  country, at-least-one-of-email/mobile guarded on update), avatar upload/remove
+  (`spatie/laravel-medialibrary` is available in the stack but not used here — plain
+  `Storage::disk('public')`, since avatars don't need conversions/responsive variants), language,
+  currency. `Models/Country`/`City`/`Currency` are public read-only master data
+  (`Http/Controllers/MasterDataController`) — writes to them are an Admin-portal concern, not
+  exposed on this controller.
+- **Provider identity** (`Http/Controllers/ProviderController`, `Models/Provider`,
+  `ProviderVerification`, `ProviderDocument`): activate (one per account, enforced at the DB level
+  too), update, submit verification documents, upload/remove logo and cover image
+  (`logo_path`/`cover_path`, `public` disk), `social_links` (JSON object keyed by
+  `Enums/SocialPlatform` — unknown keys rejected at validation, not silently dropped).
+  `Enums/ProviderVerificationStatus::canSubmit()` gates resubmission — only from
+  `not_submitted`/`rejected`/`expired`, never while a review is already in progress or once
+  approved. Government-CR integration, Business Categories, and Portfolio/Certificates/Statistics
+  are not built — see `docs/modules/core.md` § Provider for the full target shape.
+- **Capability resolution** (`Contracts/UserCapabilityResolver` + `Services/CapabilityResolver`,
+  `Http/Controllers/CapabilityController` at `GET /api/v1/core/me/capabilities`): see
+  `docs/architecture/module-boundaries.md` § User capability resolution for the full contract.
+- **Admin/RBAC** (`Models/Admin`, `spatie/laravel-permission` on the `admin` guard): see
+  `docs/architecture/admin-portal.md` for the full reference — the UI lives at the application
+  root (`app/Http/Controllers/Admin`), not in this module, but the `Admin` model and the
+  `Services/Admin/*` classes it uses (`AdminAuthService`, `AdminManagementService`, `RoleManagementService`) are Core's, backed by `Repositories/*` (see docs/architecture/backend-layering.md).
+  The permission catalog and example role → permission sets live in `config/permissions.php`
+  (`config('core.permissions.*')`), not hardcoded in the seeders — add a permission there in the
+  same change that adds a `can:<permission>` route middleware. `core:sync-permissions` (no
+  options) does a full RBAC rebuild from that config, restoring any dashboard-created role and
+  every admin's role assignment afterward; `core:permissions:audit` cross-checks routes against
+  the catalog/database and can `--sync` any gap it finds.
+- **Known minor gap**: `php artisan scribe:generate` fails its live-example dry run for `PUT
+  /profile`, `PUT /providers/me`, and every file-upload endpoint (`POST /profile/avatar`,
+  `POST /providers/me/logo`, `POST /providers/me/cover`) — the first two hit a real null
+  `UserProfile`/`Provider` relation on Scribe's synthetic test user; the file-upload ones fail on
+  `fopen((binary))` while trying to turn the doc-block's `Example: (binary)` placeholder into a
+  literal file. Docs still generate fully (route list, validation rules, doc-blocks); only the
+  auto-captured example *response* for these is missing. Not a bug in the endpoints themselves —
+  confirmed working via Pest tests and manual testing with real data.
 
 ## Gotchas
 
@@ -146,3 +201,26 @@ reconsider the design (likely needs a new Contract or Event instead).
 - Reports/Admin sub-areas depend conceptually on "all other modules" for data — be careful not to
   let that turn into actual code-level imports from other `Modules/*` packages (see Module
   boundary above); aggregate via events, read models, or Contracts instead.
+- **`User`, `Admin`, and `Provider` use Laravel 13's attribute-based `#[Fillable([...])]`, not the
+  legacy `$fillable` property — and it behaves identically for mass-assignment guarding.** A
+  Repository method building its own attribute array (not passing through raw request input) that
+  needs to set a non-fillable column — `status`, `is_super_admin`, `user_id` on `Provider` — must
+  use `Model::forceCreate()`/`$model->forceFill(...)->save()`, never `create()`/`fill()`, or the
+  value is silently dropped with no error (the column falls back to its DB-level default, or stays
+  null if there isn't one). This bit every one of the Auth/Admin/Provider repositories during
+  initial implementation — each one now uses `forceCreate`/`forceFill` for exactly this reason;
+  follow that pattern for any new Repository method that sets a field deliberately excluded from
+  `#[Fillable]`. This does **not** apply inside `database/factories/*` — Eloquent factories wrap
+  instantiation in `Model::unguarded()`
+  internally, so `User::factory()->create(['status' => ...])` in a test works fine even though the
+  equivalent `User::create([...])` in production code would not.
+- **Larastan needs to be told about this module's migrations and config, or every new column reads
+  as "undefined property".** `phpstan.neon`'s `databaseMigrationsPath`/`configDirectories` list
+  every module's `database/migrations`/`config` explicitly — Larastan's defaults only scan the
+  root `database/migrations`/`config` directories. If a new module is ever added, add its paths to
+  both lists in the same change, or that module's models will fail static analysis for no reason
+  related to the actual code.
+- Model relation methods need PHPDoc generics (`@return HasOne<UserProfile, $this>`, not just the
+  bare `HasOne` return type) for Larastan to infer the related model's properties through the
+  relation — e.g. `$user->profile->full_name`. Every relation in this module follows this pattern;
+  match it for new ones.

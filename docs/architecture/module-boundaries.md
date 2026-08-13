@@ -107,6 +107,36 @@ This is the same one-way-dependency shape as everything else in this doc: a busi
 
 `Modules/Core`'s own routes are **not** gated this way — Core is the mandatory substrate every account has by definition (auth, health checks, etc.), never something to "not buy."
 
+## User capability resolution — a second, sibling contract to `ModuleEntitlementChecker`
+
+`Modules\Core\Contracts\ModuleEntitlementChecker` (above) answers a security-critical, per-module
+boolean: may this request proceed. `Modules\Core\Contracts\UserCapabilityResolver` answers a
+different question — a full, UI-hint read model of which capabilities an account currently has
+(`Modules\Core\Data\UserCapabilities`: `isProvider`, `providerVerified`, `hasEcommerceAccess`,
+`hasErpAccess`, `maxProjectOffers`), exposed at `GET /api/v1/core/me/capabilities`.
+
+This exists because of a specific, explicit product rule (`docs/business/personas.md`): "Project
+Owner", "Supplier", "ERP User", and "Customer" are never stored roles on `User` — they're computed
+every time from `Provider` existence/verification + subscription state. `App\Models\User`
+deliberately does not use Spatie's `HasRoles` trait for this reason; that trait is reserved for
+`Modules\Core\Models\Admin` (the `admin` guard), a completely separate, genuinely role-based
+identity. Don't add a `role` column to `users` and don't give `User` `HasRoles` — if you need a
+new derived capability, add a field to `UserCapabilities` and compute it in
+`Modules\Core\Services\CapabilityResolver`, the same way `isProvider`/`providerVerified` are
+computed there today.
+
+**The client-trust boundary**: `UserCapabilityResolver`'s output is advisory only. No endpoint may
+treat a client-supplied copy of this DTO as authoritative — every protected action independently
+re-derives entitlement from `ModuleEntitlementChecker`/the `Provider`/subscription tables at
+request time, the same "hiding a UI control is never sufficient authorization" rule the source
+spec states for admins, applied here to end users too.
+
+`Modules\Core\Models\Provider.has_ecommerce_access`/`has_erp_access` are a denormalized read-cache
+of entitlement (so an admin list/report query doesn't need to join subscription tables), kept in
+sync by domain events once Subscription exists (`docs/business/roadmap.md` Phase 2) — currently
+hardcoded to `false` at Provider creation since no subscription can grant them yet. Never treat
+these two columns as authoritative for a security decision; they're a projection, not the record.
+
 ## Why Core is the one shared dependency
 
 Core holds the things that are true regardless of which business module a request is touching: who the user is, what they're subscribed to, what their wallet balance is, what role/permissions they have, how they're notified, how they chat. Every one of the four business modules needs all of that on nearly every request — duplicating it per module would mean four copies of auth, four wallets, four notification systems to keep consistent. Centralizing it in Core and letting the business modules depend one-way on it gives every module the same identity/billing/notification substrate without any of them depending on each other.

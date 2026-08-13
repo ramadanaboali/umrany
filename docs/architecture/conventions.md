@@ -11,15 +11,17 @@ Every new PHP file starts with `declare(strict_types=1);`. No exceptions for "sm
 - **Style**: `laravel/pint`, run via `composer lint`. Run before every commit; CI expects a clean Pint pass.
 - **Static analysis**: `larastan/larastan`, run via `composer analyse`. Must be clean before merge — treat a new Larastan error the same as a failing test, not as something to suppress with a baseline entry unless there's no other option.
 
-## Controller pattern: FormRequest → Action → Resource
+## Controller pattern: FormRequest → Service (→ Repository) → Resource
 
-Controllers stay thin and contain no business logic and no validation logic. The shape every endpoint follows:
+Controllers stay thin and contain no business logic and no validation logic. Full rationale and
+the Gateway/Orchestration/Service/Repository mapping: `docs/architecture/backend-layering.md`. The
+shape every endpoint follows:
 
 1. **FormRequest** — owns all input validation and any request-level authorization gate. Controllers never call `$request->validate(...)` inline; if a route accepts input, there's a dedicated FormRequest class for it.
-2. **Action class** — owns the actual business logic (a single `handle()`/`execute()` entry point per action, one action per meaningful operation). Controllers call into an Action and do nothing else; this is what makes business logic testable independent of HTTP and reusable from queued jobs or console commands.
+2. **Service class** — owns the actual business logic (a single clearly-named entry point method per operation, e.g. `AuthService::register()`). Controllers call into a Service and do nothing else; this is what makes business logic testable independent of HTTP and reusable from queued jobs or console commands. A Service calls a **Repository** (bound via a `Contracts\...RepositoryInterface`, see `backend-layering.md`) for persistence — it never runs Eloquent queries inline for anything a Repository already owns.
 3. **API Resource** — owns response shaping. Controllers never return raw Eloquent models or hand-built arrays; every response is transformed through an `Illuminate\Http\Resources\Json\JsonResource` (or a `spatie/laravel-data` DTO where the endpoint already has one).
 
-A controller method, in the common case, is just: resolve the FormRequest, call the Action, return the Resource. If a controller method is doing anything more than that, the logic belongs in an Action instead.
+A controller method, in the common case, is just: resolve the FormRequest, call the Service, return the Resource. If a controller method is doing anything more than that, the logic belongs in a Service instead. (Older code may still reference `Actions/*` — that's the pre-refactor name for this same layer; see `backend-layering.md`'s migration note.)
 
 ## Authorization: Policies + spatie/laravel-permission
 
@@ -45,6 +47,15 @@ public function update(User $user, Order $order): bool
 ```
 
 This keeps authorization logic in one place per model (the Policy), testable in isolation, and changeable (adding a new role, splitting a permission) without touching controllers.
+
+**Exception — pure permission checks with no object-level nuance.** A Policy exists to combine a
+permission check with per-instance logic (`$user->can('orders.update') || $user->id === $order->owner_id`
+above). When a route's authorization is *only* "does this admin have this permission" — no
+ownership, no per-object exception — a Policy class would just proxy to `$user->can(...)` with no
+added logic, which is unnecessary ceremony (`CLAUDE.md` Rule 3: don't build abstractions the
+current task doesn't need). The admin dashboard's role/admin-management routes
+(`routes/admin.php`) use Spatie's `can:<permission>` route middleware directly for exactly this
+reason. Reach for a Policy the moment there's real per-instance logic to add, not before.
 
 ## Testing: Pest
 
