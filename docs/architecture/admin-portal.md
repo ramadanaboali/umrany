@@ -92,9 +92,9 @@ exist, one `list`/`view`/`create`/`update`/`delete` action per resource (`admins
 `admins.view`, `admins.create`, `admins.update`, `admins.delete`, and the same five for `roles`) —
 per root `CLAUDE.md` Rule 0/roadmap discipline, a new admin screen's permission gets added there in
 the same change that builds the screen, not speculatively ahead of it. This replaced an earlier
-coarse `view`/`manage` pair per resource via a one-time data migration
-(`Modules/Core/database/migrations/2026_08_16_000000_expand_admin_rbac_permission_actions.php`) —
-see `docs/decisions/0009-granular-crud-admin-permissions.md`. `php artisan core:permissions:audit`
+coarse `view`/`manage` pair per resource — see `docs/decisions/0009-granular-crud-admin-permissions.md`
+for why a fresh reseed (not a data-remap migration) was the right call at this project's current
+pre-launch stage. `php artisan core:permissions:audit`
 cross-checks that every `can:<permission>` route middleware actually in use has a matching catalog
 entry and database row, and can `--sync` any database gap it finds. The bootstrap Super Admin's
 credentials come from `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars, read via

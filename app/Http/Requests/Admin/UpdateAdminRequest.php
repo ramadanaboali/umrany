@@ -8,12 +8,20 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Modules\Core\Enums\AdminStatus;
 use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
+use Modules\Core\Support\PhoneNumber;
 
 final class UpdateAdminRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('phone')) {
+            $this->merge(['phone' => PhoneNumber::normalize($this->string('phone')->value())]);
+        }
     }
 
     /**
@@ -23,7 +31,7 @@ final class UpdateAdminRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber],
+            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, Rule::unique('admins', 'phone')->ignore($this->route('admin'))],
             'status' => ['required', Rule::enum(AdminStatus::class)],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'admin')],

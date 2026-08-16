@@ -20,15 +20,15 @@
             <fieldset>
                 <legend>Change password (optional)</legend>
                 <label for="current_password">Current password</label>
-                <input type="password" id="current_password" name="current_password">
+                <input type="password" id="current_password" name="current_password" autocomplete="current-password">
                 @error('current_password')<div class="error">{{ $message }}</div>@enderror
 
                 <label for="password">New password</label>
-                <input type="password" id="password" name="password">
+                <input type="password" id="password" name="password" autocomplete="new-password">
                 @error('password')<div class="error">{{ $message }}</div>@enderror
 
                 <label for="password_confirmation">Confirm new password</label>
-                <input type="password" id="password_confirmation" name="password_confirmation">
+                <input type="password" id="password_confirmation" name="password_confirmation" autocomplete="new-password">
             </fieldset>
 
             <button type="submit" class="btn" style="margin-top:1rem;">Save</button>

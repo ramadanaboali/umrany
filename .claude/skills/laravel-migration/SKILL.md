@@ -5,6 +5,12 @@ description: Safe migration workflow for Umrany — module placement, reversibil
 
 # Write a safe migration
 
+**Dev-phase exception (root `CLAUDE.md` Rule 7):** this project has no production data yet. If
+you're changing a table this project itself introduced (not vendor/package tables), edit the
+original migration file directly and reset the database (`migrate:fresh --seed`) instead of writing
+a new follow-on migration — the rest of this skill's guidance (reversibility, indexing, FK checks)
+still applies in full to genuinely new tables/columns.
+
 ## 1. Placement
 
 Migrations live in the owning module: `Modules/<Module>/database/migrations/`. Generate with:

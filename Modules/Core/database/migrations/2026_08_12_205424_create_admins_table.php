@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
-            $table->string('phone')->nullable();
+            $table->string('phone')->nullable()->unique();
             $table->string('avatar_path')->nullable();
             // Bypasses all permission checks (Gate::before) regardless of role assignment —
             // a boolean, not a role name, so renaming/removing a "Super Admin" role can never

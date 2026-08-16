@@ -7,12 +7,20 @@ namespace Modules\Core\Http\Requests\Auth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
+use Modules\Core\Support\PhoneNumber;
 
 final class RegisterRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('mobile')) {
+            $this->merge(['mobile' => PhoneNumber::normalize($this->string('mobile')->value())]);
+        }
     }
 
     /**

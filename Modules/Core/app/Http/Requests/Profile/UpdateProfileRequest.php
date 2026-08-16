@@ -10,12 +10,20 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Modules\Core\Models\City;
 use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
+use Modules\Core\Support\PhoneNumber;
 
 final class UpdateProfileRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('mobile')) {
+            $this->merge(['mobile' => PhoneNumber::normalize($this->string('mobile')->value())]);
+        }
     }
 
     /**

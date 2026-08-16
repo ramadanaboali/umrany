@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
+use Modules\Core\Support\PhoneNumber;
 
 final class StoreAdminRequest extends FormRequest
 {
@@ -15,6 +16,13 @@ final class StoreAdminRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('phone')) {
+            $this->merge(['phone' => PhoneNumber::normalize($this->string('phone')->value())]);
+        }
     }
 
     /**
@@ -25,7 +33,7 @@ final class StoreAdminRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:admins,email'],
-            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber],
+            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, 'unique:admins,phone'],
             'password' => ['required', 'confirmed', PasswordRule::min(8)->mixedCase()->numbers()],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'admin')],

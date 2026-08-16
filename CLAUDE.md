@@ -98,6 +98,33 @@ Whenever you add a new model backed by its own table (not a pivot), add or exten
 - If the new model needs its own permission(s) to be admin-manageable, add them to `PermissionSeeder` in the same change, not speculatively ahead of the screen that uses them (Rule 0).
 - `.claude/skills/laravel-migration` already covers migration mechanics; treat "does this need a seeder" as a standing checklist item every time that skill runs, not a separate ask.
 
+## Rule 7 — dev-phase migration policy: edit in place, then reset the database
+
+This project has no production deployment and no real user data yet — every environment's database
+is disposable. Until the user says otherwise (e.g. after a real production launch), schema changes
+to a table this project itself introduced don't need a new incremental follow-on migration for
+every tweak:
+
+- **Edit the original migration file directly** (the one that created or last meaningfully changed
+  the table) instead of layering another `ALTER TABLE`-style migration on top of it. Keep the
+  table's schema defined in one place, the way it would have looked if written correctly the first
+  time.
+- After editing, **drop and recreate** the affected database so the edited migration runs cleanly:
+  `docker compose exec app php artisan migrate:fresh --seed` (whole dev DB) is the normal move.
+  This is destructive (drops all data in that environment) — same as any other destructive action,
+  don't run it against an environment that might hold real work without checking first.
+- **Data remaps also don't need a one-time migration** — if a change (like a permission catalog
+  reshape) would otherwise need a `Permission::findOrCreate`/data-transform migration to preserve
+  already-seeded rows, just edit the seeder/config and reseed from scratch instead; idempotent
+  seeders already reproduce the target state from their single source of truth.
+- This does **not** relax `.claude/skills/laravel-migration`'s normal safety guidance (`down()`,
+  indexing, FK checks) for genuinely new tables/columns — it only means: don't feel obliged to
+  write a careful, non-destructive follow-on migration just to adjust a table this same project
+  added a few migrations ago with no real data behind it.
+- The moment any environment holds data worth preserving across a migration change, this rule
+  stops applying there — revert to normal additive/reversible migration practice for that
+  environment going forward.
+
 ## Commands (everything runs through Docker)
 
 ```bash

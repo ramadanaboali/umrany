@@ -28,21 +28,15 @@ after a naive rename to just `admins.update`, it couldn't anymore, without anyon
   `admins.view`, `admins.create`, `admins.update`, `admins.delete`, and the same five for `roles`.
   `.view` itself is kept (not renamed) since it remains meaningful — viewing one record is still a
   distinct action from listing many.
-- **A one-time data migration, not a seeder change**, does the remap:
-  `Modules/Core/database/migrations/2026_08_16_000000_expand_admin_rbac_permission_actions.php`.
-  Every role holding `<resource>.manage` gets `<resource>.create` + `<resource>.update` +
-  `<resource>.delete`; every role holding `<resource>.view` additionally gets `<resource>.list`.
-  The old `.manage` permission is then deleted (cascading its `role_has_permissions` rows); `.view`
-  is left alone since it's still valid. A real migration (not `PermissionSeeder`/`RoleSeeder`,
-  which are idempotent-by-design and re-run on every container boot per root `CLAUDE.md` Rule 6) is
-  the right tool here: this is a one-time structural remap of existing data, and Laravel's
-  migrations table already guarantees "runs exactly once," which idempotent-seeder re-running
-  would otherwise just approximate. The migration is guarded to be a safe no-op if the old
-  permissions don't exist (fresh install, or already migrated).
-- `down()` is intentionally empty — collapsing five granular grants back into the old two-
-  permission shape has no well-defined inverse (a role could hold `admins.update` without
-  `admins.create`, which `.manage` can't represent). A lossy `down()` that silently discarded which
-  specific actions a role had would be worse than no `down()` at all.
+- **No data-remap migration** — this project is still pre-launch (no production data to preserve
+  across the catalog shape change), so per root `CLAUDE.md`'s dev-phase migration policy, the
+  catalog change is just the `config/permissions.php` edit plus a normal reseed
+  (`composer reseed` / `migrate:fresh --seed`). `PermissionSeeder`/`RoleSeeder` already read the
+  catalog generically, so a fresh install produces the new 10-permission catalog with no special
+  handling. (An earlier version of this change shipped a one-time
+  `Permission::findOrCreate`/`givePermissionTo` remap migration to preserve already-seeded roles'
+  effective permissions across the rename — removed once the dev-phase policy made "just reseed"
+  the simpler, equally-correct choice for an environment with no real users yet.)
 - Every `can:<permission>` route middleware in `routes/admin.php`, the corresponding Blade `@can`
   checks, and the read-only Permissions catalog page (now a resource × action matrix instead of a
   flat per-permission list) were updated to the new names in the same change.
@@ -58,5 +52,5 @@ after a naive rename to just `admins.update`, it couldn't anymore, without anyon
   catalog/routes generically rather than assuming a fixed permission count.
 - A role assigned `admins.update` today does **not** implicitly get `admins.delete` the way
   `admins.manage` used to imply it — this is a real behavior change for any role that relied on
-  that bundling, now made explicit at migration time rather than left as an accidental side effect
-  of a rename.
+  that bundling. Any admin/role data seeded before this change needs a fresh reseed to pick up the
+  new catalog (expected and fine pre-launch; would need a real remap migration again post-launch).

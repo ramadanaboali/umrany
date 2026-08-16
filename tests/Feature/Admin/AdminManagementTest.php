@@ -48,6 +48,46 @@ class AdminManagementTest extends TestCase
         $this->assertFalse($nora->is_super_admin);
     }
 
+    public function test_duplicate_email_is_rejected_on_create(): void
+    {
+        Admin::forceCreate([
+            'name' => 'Existing',
+            'email' => 'taken@umrany.test',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+            'is_super_admin' => false,
+        ]);
+        $actor = $this->superAdmin();
+
+        $this->actingAs($actor, 'admin')->post('/admin/admins', [
+            'name' => 'Someone',
+            'email' => 'taken@umrany.test',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+        ])->assertSessionHasErrors('email');
+    }
+
+    public function test_duplicate_phone_is_rejected_on_create_even_in_a_different_format(): void
+    {
+        Admin::forceCreate([
+            'name' => 'Existing',
+            'email' => 'existing-'.uniqid().'@umrany.test',
+            'phone' => '+966512345678',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+            'is_super_admin' => false,
+        ]);
+        $actor = $this->superAdmin();
+
+        $this->actingAs($actor, 'admin')->post('/admin/admins', [
+            'name' => 'Someone',
+            'email' => 'someone-'.uniqid().'@umrany.test',
+            'phone' => '0512345678',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+        ])->assertSessionHasErrors('phone');
+    }
+
     public function test_non_super_admin_cannot_grant_super_admin_even_if_submitted(): void
     {
         Permission::findOrCreate('admins.create', 'admin');
@@ -104,6 +144,45 @@ class AdminManagementTest extends TestCase
         // core:admin:promote-super. See docs/architecture/admin-portal.md.
         $response->assertRedirect(route('admin.admins.index'));
         $this->assertTrue($target->refresh()->is_super_admin);
+    }
+
+    public function test_duplicate_phone_is_rejected_on_update(): void
+    {
+        Admin::forceCreate([
+            'name' => 'Existing',
+            'email' => 'existing-'.uniqid().'@umrany.test',
+            'phone' => '+966512345678',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+            'is_super_admin' => false,
+        ]);
+        $target = $this->superAdmin();
+        $actor = $this->superAdmin();
+
+        $this->actingAs($actor, 'admin')->put("/admin/admins/{$target->id}", [
+            'name' => $target->name,
+            'status' => 'active',
+            'phone' => '0512345678',
+        ])->assertSessionHasErrors('phone');
+    }
+
+    public function test_keeping_an_admins_own_phone_unchanged_is_not_flagged_as_a_duplicate(): void
+    {
+        $target = Admin::forceCreate([
+            'name' => 'Target',
+            'email' => 'target-'.uniqid().'@umrany.test',
+            'phone' => '+966512345678',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+            'is_super_admin' => false,
+        ]);
+        $actor = $this->superAdmin();
+
+        $this->actingAs($actor, 'admin')->put("/admin/admins/{$target->id}", [
+            'name' => $target->name,
+            'status' => 'active',
+            'phone' => '+966512345678',
+        ])->assertSessionDoesntHaveErrors();
     }
 
     public function test_last_active_super_admin_cannot_be_suspended(): void
