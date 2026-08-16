@@ -158,11 +158,19 @@ reconsider the design (likely needs a new Contract or Event instead).
   root (`app/Http/Controllers/Admin`), not in this module, but the `Admin` model and the
   `Services/Admin/*` classes it uses (`AdminAuthService`, `AdminManagementService`, `RoleManagementService`) are Core's, backed by `Repositories/*` (see docs/architecture/backend-layering.md).
   The permission catalog and example role → permission sets live in `config/permissions.php`
-  (`config('core.permissions.*')`), not hardcoded in the seeders — add a permission there in the
-  same change that adds a `can:<permission>` route middleware. `core:sync-permissions` (no
-  options) does a full RBAC rebuild from that config, restoring any dashboard-created role and
-  every admin's role assignment afterward; `core:permissions:audit` cross-checks routes against
-  the catalog/database and can `--sync` any gap it finds.
+  (`config('core.permissions.*')`), not hardcoded in the seeders — five actions per resource
+  (`list`/`view`/`create`/`update`/`delete`, e.g. `admins.create`, `roles.delete`), added there in
+  the same change that adds a `can:<permission>` route middleware (see
+  `docs/decisions/0009-granular-crud-admin-permissions.md`). `core:sync-permissions` (no options)
+  does a full RBAC rebuild from that config, restoring any dashboard-created role and every admin's
+  role assignment afterward; `core:permissions:audit` cross-checks routes against the
+  catalog/database and can `--sync` any gap it finds. `is_super_admin` is never settable through
+  the dashboard/API by anyone — only `php artisan core:admin:promote-super {email} [--revoke]`
+  changes it. `Modules\Core\Events\AdminPermissionsChanged` broadcasts on `private-core.admin.{id}`
+  whenever an admin's role/status changes or a role they hold gets re-synced, so an
+  already-signed-in admin's dashboard can surface a live refresh banner (`docs/decisions/
+  0008-admin-rbac-live-refresh-via-reverb.md`). Super Admins are excluded from the admins listing
+  and dashboard count (`Admin::excludingSuperAdmins()`).
 - **Known minor gap**: `php artisan scribe:generate` fails its live-example dry run for `PUT
   /profile`, `PUT /providers/me`, and every file-upload endpoint (`POST /profile/avatar`,
   `POST /providers/me/logo`, `POST /providers/me/cover`) — the first two hit a real null

@@ -38,13 +38,13 @@ class AdminRbacTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_with_view_permission_can_list_but_not_manage(): void
+    public function test_admin_with_list_permission_can_list_but_not_create(): void
     {
-        Permission::findOrCreate('admins.view', 'admin');
-        Permission::findOrCreate('admins.manage', 'admin');
+        Permission::findOrCreate('admins.list', 'admin');
+        Permission::findOrCreate('admins.create', 'admin');
 
         $role = Role::findOrCreate('Support', 'admin');
-        $role->syncPermissions(['admins.view']);
+        $role->syncPermissions(['admins.list']);
 
         $admin = $this->admin();
         $admin->assignRole($role);

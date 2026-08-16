@@ -29,5 +29,16 @@ interface AdminRepositoryInterface
      */
     public function countOtherActiveSuperAdmins(int $excludeAdminId): int;
 
+    /**
+     * Regular (non-Super-Admin) admin listing — Super Admins are excluded, see
+     * Admin::excludingSuperAdmins().
+     */
     public function paginate(int $perPage = 20): LengthAwarePaginator;
+
+    /**
+     * Regular (non-Super-Admin) admin count — used for the dashboard tile.
+     */
+    public function countRegular(): int;
+
+    public function delete(Admin $admin): void;
 }

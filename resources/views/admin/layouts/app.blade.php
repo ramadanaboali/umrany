@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <title>@yield('title', 'Dashboard') · Umrany Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    @auth('admin')
+        <meta name="admin-id" content="{{ Auth::guard('admin')->id() }}">
+    @endauth
+    @vite(['resources/css/app.css', 'resources/js/admin.js'])
     {{-- Swap this block for the real dashboard theme's stylesheet/script links — nothing in the
          markup below (sidebar/nav/content structure) depends on this specific CSS, it's a
          plain, theme-agnostic placeholder standing in until the theme is integrated. --}}
@@ -39,10 +44,10 @@
     <nav>
         <span class="brand">Umrany Admin</span>
         <a href="{{ route('admin.dashboard') }}">Dashboard</a>
-        @can('admins.view')
+        @can('admins.list')
             <a href="{{ route('admin.admins.index') }}">Admins</a>
         @endcan
-        @can('roles.view')
+        @can('roles.list')
             <a href="{{ route('admin.roles.index') }}">Roles</a>
             <a href="{{ route('admin.permissions.index') }}">Permissions</a>
         @endcan
@@ -56,6 +61,11 @@
         <header>
             <h1>@yield('title', 'Dashboard')</h1>
         </header>
+        <div id="permissions-changed-banner" class="status" hidden style="background:#fef3c7; color:#92400e;">
+            Your permissions have changed —
+            <a href="{{ request()->fullUrl() }}">refresh this page</a> to see the update.
+            <button type="button" onclick="this.closest('div').hidden = true;" style="float:right; background:none; border:none; cursor:pointer; font-size:1rem; color:inherit;">&times;</button>
+        </div>
         @if (session('status'))
             <div class="status">{{ session('status') }}</div>
         @endif

@@ -61,9 +61,25 @@ simulated requests in the same test process.
   source spec states for admins generally).
 - Non-obvious edge cases enforced in `Modules\Core\Services\Admin\AdminManagementService` (not
   just documented — see its Pest tests for proof): an admin can never suspend their own account
-  through the edit form; only an existing Super Admin may grant/revoke Super Admin status on
-  someone else; the last active Super Admin can never be demoted or suspended, so there's always
-  a way back into the system.
+  through the edit form; the last active Super Admin can never be suspended or deleted, so there's
+  always a way back into the system.
+- **`is_super_admin` is never settable through the web dashboard or any API, by anyone — including
+  another Super Admin.** The create/edit admin forms have no field for it at all, and
+  `StoreAdminRequest`/`UpdateAdminRequest` don't accept it even if submitted directly. The only way
+  to grant or revoke it is `php artisan core:admin:promote-super {email} [--revoke]`, which still
+  enforces the last-active-Super-Admin guard on revoke. This is deliberately stricter than "only a
+  Super Admin may change it" (the previous rule) — see `docs/decisions/0009-granular-crud-admin-
+  permissions.md`'s sibling change and the removed UI copy that used to read "unrestricted access,
+  bypasses all permission checks" next to the checkbox.
+- **Super Admins are excluded from the admins listing and dashboard count** (`Admin::
+  excludingSuperAdmins()`scope) — they aren't a "manageable" admin in the ordinary sense. A
+  Super Admin still sees their own "Super Admin" badge on the dashboard (that's "who am I", not a
+  listing).
+- **Live permission refresh**: when a role's permissions change, or an admin's own role/status
+  changes, `Modules\Core\Events\AdminPermissionsChanged` broadcasts on that admin's private
+  `core.admin.{id}` channel (Reverb), and the admin layout shows a dismissible "your permissions
+  changed — refresh" banner if they're already signed in elsewhere. See
+  `docs/decisions/0008-admin-rbac-live-refresh-via-reverb.md`.
 
 ## Seeding
 
@@ -72,14 +88,20 @@ simulated requests in the same test process.
 § Startup migrate+seed). `PermissionSeeder`/`RoleSeeder` read the permission catalog and example
 role → permission sets from `Modules/Core/config/permissions.php` (`config('core.permissions.*')`)
 rather than a hardcoded list — that config file only names permissions for screens that actually
-exist (`admins.view`, `admins.manage`, `roles.view`, `roles.manage`) — per root `CLAUDE.md`
-Rule 0/roadmap discipline, a new admin screen's permission gets added there in the same change
-that builds the screen, not speculatively ahead of it. `php artisan core:permissions:audit`
+exist, one `list`/`view`/`create`/`update`/`delete` action per resource (`admins.list`,
+`admins.view`, `admins.create`, `admins.update`, `admins.delete`, and the same five for `roles`) —
+per root `CLAUDE.md` Rule 0/roadmap discipline, a new admin screen's permission gets added there in
+the same change that builds the screen, not speculatively ahead of it. This replaced an earlier
+coarse `view`/`manage` pair per resource via a one-time data migration
+(`Modules/Core/database/migrations/2026_08_16_000000_expand_admin_rbac_permission_actions.php`) —
+see `docs/decisions/0009-granular-crud-admin-permissions.md`. `php artisan core:permissions:audit`
 cross-checks that every `can:<permission>` route middleware actually in use has a matching catalog
 entry and database row, and can `--sync` any database gap it finds. The bootstrap Super Admin's
 credentials come from `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars, read via
 `config('core.bootstrap_admin.*')` (`Modules/Core/config/config.php`) — never `env()` directly
-outside a config file, since `env()` returns null once config is cached in a real deploy.
+outside a config file, since `env()` returns null once config is cached in a real deploy. Granting
+or revoking Super Admin status is a separate, deliberately out-of-band operation — see
+`php artisan core:admin:promote-super` in the Authorization section above.
 
 ## What's still open
 

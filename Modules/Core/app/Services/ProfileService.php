@@ -12,6 +12,7 @@ use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Models\UserProfile;
 use Modules\Core\Repositories\Contracts\UserProfileRepositoryInterface;
 use Modules\Core\Repositories\Contracts\UserRepositoryInterface;
+use Modules\Core\Support\PhoneNumber;
 
 final class ProfileService
 {
@@ -38,9 +39,13 @@ final class ProfileService
             $this->verificationCodes->issue($user, VerificationCodeType::Email, VerificationCodePurpose::AccountVerification);
         }
 
-        if (array_key_exists('mobile', $data) && $data['mobile'] !== $user->mobile) {
-            $this->users->forceUpdate($user, ['mobile' => $data['mobile'], 'mobile_verified_at' => null]);
-            $this->verificationCodes->issue($user, VerificationCodeType::Mobile, VerificationCodePurpose::AccountVerification);
+        if (array_key_exists('mobile', $data)) {
+            $normalizedMobile = PhoneNumber::normalize($data['mobile']);
+
+            if ($normalizedMobile !== $user->mobile) {
+                $this->users->forceUpdate($user, ['mobile' => $normalizedMobile, 'mobile_verified_at' => null]);
+                $this->verificationCodes->issue($user, VerificationCodeType::Mobile, VerificationCodePurpose::AccountVerification);
+            }
         }
 
         $profileData = array_intersect_key($data, array_flip(self::PROFILE_FIELDS));

@@ -44,30 +44,43 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
-        Route::middleware('can:admins.view')->group(function () {
+        Route::middleware('can:admins.list')->group(function () {
             Route::get('/admins', [AdminController::class, 'index'])->name('admins.index');
+        });
+        Route::middleware('can:admins.view')->group(function () {
             Route::get('/admins/{admin}/edit', [AdminController::class, 'edit'])->name('admins.edit');
         });
-        Route::middleware('can:admins.manage')->group(function () {
+        Route::middleware('can:admins.create')->group(function () {
             Route::get('/admins/create', [AdminController::class, 'create'])->name('admins.create');
             Route::post('/admins', [AdminController::class, 'store'])->name('admins.store');
+        });
+        Route::middleware('can:admins.update')->group(function () {
             Route::put('/admins/{admin}', [AdminController::class, 'update'])->name('admins.update');
         });
+        Route::middleware('can:admins.delete')->group(function () {
+            Route::delete('/admins/{admin}', [AdminController::class, 'destroy'])->name('admins.destroy');
+        });
 
-        Route::middleware('can:roles.view')->group(function () {
+        Route::middleware('can:roles.list')->group(function () {
             Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+        });
+        Route::middleware('can:roles.view')->group(function () {
             Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
         });
-        Route::middleware('can:roles.manage')->group(function () {
+        Route::middleware('can:roles.create')->group(function () {
             Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
             Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        });
+        Route::middleware('can:roles.update')->group(function () {
             Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        });
+        Route::middleware('can:roles.delete')->group(function () {
             Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
         });
 
-        // Read-only catalog view — gated on the same permission as viewing roles, since knowing
+        // Read-only catalog view — gated on the same permission as listing roles, since knowing
         // what permissions exist is only useful alongside being able to see role assignments.
-        Route::middleware('can:roles.view')->group(function () {
+        Route::middleware('can:roles.list')->group(function () {
             Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
         });
     });

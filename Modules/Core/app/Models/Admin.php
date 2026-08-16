@@ -6,6 +6,7 @@ namespace Modules\Core\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -45,5 +46,15 @@ class Admin extends Authenticatable
     public function canAuthenticate(): bool
     {
         return $this->status->canAuthenticate();
+    }
+
+    /**
+     * Super Admins are never counted/listed as regular admins in the dashboard — they bypass
+     * every permission check (Gate::before in CoreServiceProvider) and aren't a "manageable"
+     * admin in the ordinary sense. See docs/architecture/admin-portal.md.
+     */
+    public function scopeExcludingSuperAdmins(Builder $query): Builder
+    {
+        return $query->where('is_super_admin', false);
     }
 }

@@ -22,14 +22,6 @@
             <label for="password_confirmation">Confirm password</label>
             <input type="password" id="password_confirmation" name="password_confirmation" required>
 
-            @if (Auth::guard('admin')->user()->is_super_admin)
-                <label>
-                    <input type="hidden" name="is_super_admin" value="0">
-                    <input type="checkbox" name="is_super_admin" value="1" {{ old('is_super_admin') ? 'checked' : '' }}>
-                    Grant Super Admin (unrestricted access, bypasses all permission checks)
-                </label>
-            @endif
-
             <fieldset>
                 <legend>Roles</legend>
                 <div class="checkbox-grid">

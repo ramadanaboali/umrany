@@ -8,7 +8,7 @@
         your operation needs (Finance, Support, Sales, ... are examples, not requirements).
     </p>
 
-    @can('roles.manage')
+    @can('roles.create')
         <p><a href="{{ route('admin.roles.create') }}" class="btn">+ New role</a></p>
     @endcan
 
@@ -26,8 +26,10 @@
                     <td>{{ $role->name }}</td>
                     <td>{{ $role->permissions->pluck('name')->join(', ') ?: '—' }}</td>
                     <td>
-                        @can('roles.manage')
+                        @can('roles.update')
                             <a href="{{ route('admin.roles.edit', $role) }}">Edit</a>
+                        @endcan
+                        @can('roles.delete')
                             <form method="POST" action="{{ route('admin.roles.destroy', $role) }}" style="display:inline;" onsubmit="return confirm('Delete this role?');">
                                 @csrf
                                 @method('DELETE')

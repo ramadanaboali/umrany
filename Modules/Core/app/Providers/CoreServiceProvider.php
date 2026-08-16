@@ -6,6 +6,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Gate;
 use Modules\Core\Console\Commands\AuditPermissionsCommand;
+use Modules\Core\Console\Commands\PromoteSuperAdminCommand;
 use Modules\Core\Console\Commands\SyncPermissionsCommand;
 use Modules\Core\Contracts\ModuleEntitlementChecker;
 use Modules\Core\Contracts\UserCapabilityResolver;
@@ -48,6 +49,7 @@ class CoreServiceProvider extends ModuleServiceProvider
     protected array $commands = [
         SyncPermissionsCommand::class,
         AuditPermissionsCommand::class,
+        PromoteSuperAdminCommand::class,
     ];
 
     /**

@@ -46,6 +46,16 @@ final class EloquentAdminRepository implements AdminRepositoryInterface
 
     public function paginate(int $perPage = 20): LengthAwarePaginator
     {
-        return Admin::query()->with('roles')->orderBy('name')->paginate($perPage);
+        return Admin::query()->excludingSuperAdmins()->with('roles')->orderBy('name')->paginate($perPage);
+    }
+
+    public function countRegular(): int
+    {
+        return Admin::query()->excludingSuperAdmins()->count();
+    }
+
+    public function delete(Admin $admin): void
+    {
+        $admin->delete();
     }
 }

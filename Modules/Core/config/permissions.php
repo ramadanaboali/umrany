@@ -16,14 +16,23 @@ declare(strict_types=1);
  */
 return [
     'catalog' => [
+        'admins.list',
         'admins.view',
-        'admins.manage',
+        'admins.create',
+        'admins.update',
+        'admins.delete',
+        'roles.list',
         'roles.view',
-        'roles.manage',
+        'roles.create',
+        'roles.update',
+        'roles.delete',
     ],
 
     'roles' => [
-        'Operations' => ['admins.view', 'admins.manage', 'roles.view', 'roles.manage'],
-        'Support' => ['admins.view', 'roles.view'],
+        'Operations' => [
+            'admins.list', 'admins.view', 'admins.create', 'admins.update', 'admins.delete',
+            'roles.list', 'roles.view', 'roles.create', 'roles.update', 'roles.delete',
+        ],
+        'Support' => ['admins.list', 'admins.view', 'roles.list', 'roles.view'],
     ],
 ];

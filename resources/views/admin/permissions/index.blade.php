@@ -4,28 +4,37 @@
 
 @section('content')
     <p style="color:#6b7280; font-size:.85rem;">
-        Read-only — the permission catalog is code-defined and grows as new admin screens ship
-        (root <code>CLAUDE.md</code> Rule 0). To grant a permission to admins, assign it to a
+        The permission catalog is defined in code and expands automatically as new admin screens
+        ship. To grant a permission to admins, assign it to a
         <a href="{{ route('admin.roles.index') }}">role</a> instead.
     </p>
 
-    @foreach ($permissionGroups as $group => $permissions)
-        <h3 style="margin-top:1.5rem; text-transform:capitalize;">{{ $group }}</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Permission</th>
-                    <th>Granted via roles</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($permissions as $permission)
-                    <tr>
-                        <td>{{ $permission->name }}</td>
-                        <td>{{ $permission->roles->pluck('name')->join(', ') ?: '—' }}</td>
-                    </tr>
+    <table>
+        <thead>
+            <tr>
+                <th>Resource</th>
+                @foreach ($actions as $action)
+                    <th style="text-transform:capitalize;">{{ $action }}</th>
                 @endforeach
-            </tbody>
-        </table>
-    @endforeach
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($matrix as $resource => $permissions)
+                <tr>
+                    <td style="text-transform:capitalize;">{{ $resource }}</td>
+                    @foreach ($actions as $action)
+                        <td>
+                            @if ($permissions->has($action))
+                                <span title="{{ $permissions[$action]->name }}">
+                                    {{ $permissions[$action]->roles->pluck('name')->join(', ') ?: '—' }}
+                                </span>
+                            @else
+                                <span style="color:#d1d5db;">n/a</span>
+                            @endif
+                        </td>
+                    @endforeach
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
 @endsection

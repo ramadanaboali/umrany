@@ -111,6 +111,7 @@ docker compose exec app composer reseed                  # re-run every seeder (
 docker compose exec app composer sync-permissions        # full admin RBAC rebuild from Modules/Core/config/permissions.php — preserves dashboard-created roles + admin assignments, see SyncPermissionsCommand
 docker compose exec app php artisan core:sync-permissions --attach=<perm> --role=<role>   # ad-hoc attach a permission to a role from the CLI (or --detach); flushes Spatie's permission cache
 docker compose exec app php artisan core:permissions:audit [--sync]   # diff can:<permission> route middleware against the catalog/database; --sync creates any permission a route uses but the DB lacks
+docker compose exec app php artisan core:admin:promote-super {email} [--revoke]   # the only way to grant/revoke is_super_admin — never settable via the dashboard/API
 docker compose exec app php artisan horizon:status
 docker compose exec app php artisan scribe:generate       # regenerate /docs after route/doc-block changes
 docker compose logs -f app horizon reverb

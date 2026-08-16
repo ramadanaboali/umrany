@@ -7,6 +7,7 @@ namespace App\Http\Requests\Admin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Modules\Core\Enums\AdminStatus;
+use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
 
 final class UpdateAdminRequest extends FormRequest
 {
@@ -22,11 +23,11 @@ final class UpdateAdminRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:32'],
+            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber],
             'status' => ['required', Rule::enum(AdminStatus::class)],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'admin')],
-            'is_super_admin' => ['sometimes', 'boolean'],
+            // is_super_admin is deliberately not accepted here — see StoreAdminRequest.
         ];
     }
 }

@@ -36,7 +36,7 @@ final class AdminController extends Controller
 
     public function store(StoreAdminRequest $request): RedirectResponse
     {
-        $this->admins->create($request->validated(), Auth::guard('admin')->user());
+        $this->admins->create($request->validated());
 
         return redirect()->route('admin.admins.index')->with('status', 'Admin created.');
     }
@@ -54,5 +54,12 @@ final class AdminController extends Controller
         $this->admins->update($admin, $request->validated(), Auth::guard('admin')->user());
 
         return redirect()->route('admin.admins.index')->with('status', 'Admin updated.');
+    }
+
+    public function destroy(Admin $admin): RedirectResponse
+    {
+        $this->admins->delete($admin, Auth::guard('admin')->user());
+
+        return redirect()->route('admin.admins.index')->with('status', 'Admin deleted.');
     }
 }

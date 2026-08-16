@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use Illuminate\Routing\Controller;
 use Illuminate\View\View;
-use Modules\Core\Models\Admin;
+use Modules\Core\Services\Admin\AdminManagementService;
 
 /**
  * Deliberately thin for now — this pass only builds identity/RBAC. Cross-product operational
@@ -16,10 +16,16 @@ use Modules\Core\Models\Admin;
  */
 final class DashboardController extends Controller
 {
+    public function __construct(
+        private readonly AdminManagementService $admins,
+    ) {}
+
     public function index(): View
     {
         return view('admin.dashboard', [
-            'adminCount' => Admin::query()->count(),
+            // Excludes Super Admins — see Admin::excludingSuperAdmins() and
+            // docs/architecture/admin-portal.md.
+            'adminCount' => $this->admins->countRegular(),
         ]);
     }
 }

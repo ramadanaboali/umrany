@@ -523,7 +523,8 @@ action level and assigned dynamically to admin-created roles.
 
 ### Notable edge cases called out in the source doc
 
-Admin loses permission mid-edit; role permissions change during an active admin session; provider
+Admin loses permission mid-edit; role permissions change during an active admin session (handled —
+see `docs/decisions/0008-admin-rbac-live-refresh-via-reverb.md`); provider
 suspended while E-Commerce orders are open; product removed while paid orders on it remain active;
 subscription plan deactivated while users remain subscribed; commission changes while orders are
 pending; country disabled while historical records still reference it; government integration

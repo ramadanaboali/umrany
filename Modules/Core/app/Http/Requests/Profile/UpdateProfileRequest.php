@@ -9,6 +9,7 @@ use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Modules\Core\Models\City;
+use Modules\Core\Rules\SaudiOrEgyptianPhoneNumber;
 
 final class UpdateProfileRequest extends FormRequest
 {
@@ -27,7 +28,7 @@ final class UpdateProfileRequest extends FormRequest
             // FR-PROFILE-002: email/mobile changes must stay unique platform-wide and re-trigger
             // verification — handled in Modules\Core\Actions\Profile\UpdateProfile, not here.
             'email' => ['sometimes', 'nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user()->id)],
-            'mobile' => ['sometimes', 'nullable', 'string', 'max:20', Rule::unique('users', 'mobile')->ignore($this->user()->id)],
+            'mobile' => ['sometimes', 'nullable', 'string', 'max:20', new SaudiOrEgyptianPhoneNumber, Rule::unique('users', 'mobile')->ignore($this->user()->id)],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'country_id' => ['sometimes', 'nullable', 'exists:countries,id'],
             'city_id' => ['sometimes', 'nullable', 'integer', function (string $attribute, mixed $value, Closure $fail): void {

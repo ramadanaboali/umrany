@@ -30,18 +30,6 @@
                 <p style="font-size:.8rem; color:#6b7280;">You cannot change your own status.</p>
             @endif
 
-            @if (Auth::guard('admin')->user()->is_super_admin)
-                {{-- Hidden "0" fallback before the checkbox: an unchecked checkbox sends no key
-                     at all, which the server would otherwise read as "no change requested"
-                     rather than "explicitly revoke" — the standard hidden-input pattern for
-                     checkboxes that must be able to express false, not just absent. --}}
-                <label>
-                    <input type="hidden" name="is_super_admin" value="0">
-                    <input type="checkbox" name="is_super_admin" value="1" {{ old('is_super_admin', $admin->is_super_admin) ? 'checked' : '' }}>
-                    Super Admin (unrestricted access, bypasses all permission checks)
-                </label>
-            @endif
-
             <fieldset>
                 <legend>Roles</legend>
                 <div class="checkbox-grid">

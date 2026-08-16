@@ -50,9 +50,9 @@ class AdminManagementTest extends TestCase
 
     public function test_non_super_admin_cannot_grant_super_admin_even_if_submitted(): void
     {
-        Permission::findOrCreate('admins.manage', 'admin');
+        Permission::findOrCreate('admins.create', 'admin');
         $role = Role::findOrCreate('Ops', 'admin');
-        $role->syncPermissions(['admins.manage']);
+        $role->syncPermissions(['admins.create']);
 
         $actor = Admin::forceCreate([
             'name' => 'Ops Admin',
@@ -89,38 +89,45 @@ class AdminManagementTest extends TestCase
         $this->assertSame(AdminStatus::Active, $actor->refresh()->status);
     }
 
-    public function test_last_active_super_admin_cannot_be_demoted(): void
+    public function test_is_super_admin_is_never_changed_via_update_even_when_submitted_by_a_super_admin(): void
+    {
+        $target = $this->superAdmin();
+        $actor = $this->superAdmin();
+
+        $response = $this->actingAs($actor, 'admin')->put("/admin/admins/{$target->id}", [
+            'name' => $target->name,
+            'status' => 'active',
+            'is_super_admin' => '0',
+        ]);
+
+        // The field is silently ignored, not honored — is_super_admin can only change via
+        // core:admin:promote-super. See docs/architecture/admin-portal.md.
+        $response->assertRedirect(route('admin.admins.index'));
+        $this->assertTrue($target->refresh()->is_super_admin);
+    }
+
+    public function test_last_active_super_admin_cannot_be_suspended(): void
     {
         $onlySuperAdmin = $this->superAdmin();
-        $otherActor = $this->superAdmin(); // acting admin is also super admin, editing the *other* one
 
-        $response = $this->actingAs($otherActor, 'admin')->put("/admin/admins/{$onlySuperAdmin->id}", [
+        Permission::findOrCreate('admins.update', 'admin');
+        $role = Role::findOrCreate('Ops', 'admin');
+        $role->givePermissionTo('admins.update');
+        $actor = Admin::forceCreate([
+            'name' => 'Ops Admin',
+            'email' => 'ops-'.uniqid().'@umrany.test',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+            'is_super_admin' => false,
+        ]);
+        $actor->assignRole($role);
+
+        $response = $this->actingAs($actor, 'admin')->put("/admin/admins/{$onlySuperAdmin->id}", [
             'name' => $onlySuperAdmin->name,
-            'status' => 'active',
-            'is_super_admin' => '0',
+            'status' => 'suspended',
         ]);
 
-        // Two super admins exist at this point (onlySuperAdmin + otherActor), so this demotion is
-        // actually legal — assert it succeeds, then prove the *true* last-one case separately.
-        $response->assertRedirect(route('admin.admins.index'));
-        $this->assertFalse($onlySuperAdmin->refresh()->is_super_admin);
-
-        // Now demote otherActor too, leaving zero — not allowed on the last remaining one.
-        $finalGuard = $this->superAdmin();
-        $response = $this->actingAs($finalGuard, 'admin')->put("/admin/admins/{$otherActor->id}", [
-            'name' => $otherActor->name,
-            'status' => 'active',
-            'is_super_admin' => '0',
-        ]);
-        $response->assertRedirect(route('admin.admins.index'));
-
-        // Only $finalGuard remains a super admin now — attempting to demote *that* one must fail.
-        $response = $this->actingAs($finalGuard, 'admin')->put("/admin/admins/{$finalGuard->id}", [
-            'name' => $finalGuard->name,
-            'status' => 'active',
-            'is_super_admin' => '0',
-        ]);
         $response->assertSessionHasErrors('status');
-        $this->assertTrue($finalGuard->refresh()->is_super_admin);
+        $this->assertSame(AdminStatus::Active, $onlySuperAdmin->refresh()->status);
     }
 }

@@ -17,6 +17,7 @@ use Modules\Core\Models\Currency;
 use Modules\Core\Notifications\PasswordChangedNotification;
 use Modules\Core\Repositories\Contracts\UserProfileRepositoryInterface;
 use Modules\Core\Repositories\Contracts\UserRepositoryInterface;
+use Modules\Core\Support\PhoneNumber;
 
 final class AuthService
 {
@@ -36,7 +37,7 @@ final class AuthService
             $user = $this->users->create([
                 'name' => $data['name'],
                 'email' => $data['email'] ?? null,
-                'mobile' => $data['mobile'] ?? null,
+                'mobile' => PhoneNumber::normalize($data['mobile'] ?? null),
                 'password' => $data['password'],
                 'terms_accepted_at' => now(),
                 'status' => UserStatus::Active,

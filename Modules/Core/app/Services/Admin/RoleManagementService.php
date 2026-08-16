@@ -6,6 +6,7 @@ namespace Modules\Core\Services\Admin;
 
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use Modules\Core\Events\AdminPermissionsChanged;
 use Modules\Core\Repositories\Contracts\RoleRepositoryInterface;
 use Spatie\Permission\Models\Role;
 
@@ -36,7 +37,15 @@ final class RoleManagementService
      */
     public function update(Role $role, string $name, array $permissionNames): Role
     {
-        return $this->roles->update($role, $name, $permissionNames);
+        $role = $this->roles->update($role, $name, $permissionNames);
+
+        // Every admin holding this role may have gained/lost access — tell each of their sessions
+        // (if any) to refresh live. See docs/decisions/0008-admin-rbac-live-refresh-via-reverb.md.
+        $role->users()->pluck('id')->each(
+            fn (int $adminId) => AdminPermissionsChanged::dispatch($adminId)
+        );
+
+        return $role;
     }
 
     public function delete(Role $role): void

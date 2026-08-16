@@ -29,6 +29,8 @@ class SyncPermissionsCommandTest extends TestCase
         $this->artisan('core:sync-permissions')->assertSuccessful();
 
         $this->assertTrue(Permission::where('name', 'admins.view')->where('guard_name', 'admin')->exists());
+        $this->assertTrue(Permission::where('name', 'admins.list')->where('guard_name', 'admin')->exists());
+        $this->assertFalse(Permission::where('name', 'admins.manage')->exists(), 'the old coarse admins.manage permission must not be reintroduced by a rebuild');
         $this->assertTrue(Role::where('name', 'Operations')->where('guard_name', 'admin')->exists());
     }
 

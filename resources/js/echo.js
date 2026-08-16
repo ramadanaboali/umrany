@@ -11,4 +11,12 @@ window.Echo = new Echo({
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
     enabledTransports: ['ws', 'wss'],
+    // Private-channel subscriptions POST to /broadcasting/auth under `web` middleware, which
+    // enforces CSRF like any other session request — read the token from the page's own meta tag
+    // rather than assuming a cookie-based SPA setup.
+    auth: {
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+    },
 });
