@@ -10,6 +10,7 @@ rationale for why it's structured this way: `docs/decisions/0007-in-monolith-bla
 |---|---|---|
 | `Admin` model, RBAC data (roles/permissions via `spatie/laravel-permission` on the `admin` guard), Repositories + Services (`AdminAuthService`, `AdminManagementService`, `RoleManagementService`) | `Modules/Core/app/*` | Admin/Role/Permission are Core-owned entities per `docs/modules/core.md` — this didn't change when the UI's placement was decided. |
 | Controllers, FormRequests, Blade views, `routes/admin.php` | root `app/Http/Controllers/Admin`, `app/Http/Requests/Admin`, `resources/views/admin` | The UI layer is HTTP-specific and colocated with the routes that use it — never inside a `Modules/*` package, which stays API-only. |
+| Theme partials/component, locale middleware, RTL helper, translations, vendored theme assets | `resources/views/admin/partials/*`, `resources/views/components/admin/*`, `app/Http/Middleware/SetAdminLocale`, `app/Support/AdminTheme`, root `lang/{en,ar}/admin.php`, `Modules/Core/lang/{en,ar}/*`, `public/vendor/velzon/` | See § Theme and assets / § Localization below. |
 
 If you're adding a new admin screen: business logic (a `Service` class calling a `Repository`,
 validation rules independent of the HTTP layer — see `docs/architecture/backend-layering.md`)
@@ -26,7 +27,7 @@ Two independent identities exist in this application, never conflated:
 |---|---|---|
 | Model | `App\Models\User` | `Modules\Core\Models\Admin` |
 | Guard | `sanctum` (stateless bearer tokens) | `admin` (session-based) |
-| Password reset | Custom OTP mechanism (`Modules\Core\Services\AuthService::requestPasswordReset()`/`resetPassword()`) — supports mobile-only accounts | Laravel's native `Password` broker against the `admins` broker (`config/auth.php`) — admins always have an email |
+| Password reset | Custom OTP mechanism (`Modules\Core\Services\AuthService::requestPasswordReset()`/`resetPassword()`) — supports mobile-only accounts, enumeration-safe (always a generic response) | Laravel's native `Password` broker against the `admins` broker (`config/auth.php`) — admins always have an email, **and deliberately reveals whether the submitted email belongs to a real admin account** (`app/Http/Requests/Admin/ForgotPasswordRequest`) — see `docs/decisions/0011-admin-forgot-password-reveals-account-existence.md` for why this asymmetry with the end-user side is intentional, not an oversight |
 | Roles/permissions | None — capability is computed, see `Contracts\UserCapabilityResolver` | `spatie/laravel-permission`, scoped to the `admin` guard |
 
 `Admin` deliberately does not use `HasApiTokens` — there is no `/api/v1/admin/*` surface, so
@@ -103,6 +104,91 @@ outside a config file, since `env()` returns null once config is cached in a rea
 or revoking Super Admin status is a separate, deliberately out-of-band operation — see
 `php artisan core:admin:promote-super` in the Authorization section above.
 
+## Users screen
+
+`app/Http/Controllers/Admin/UserController` + `Modules\Core\Services\Admin\UserManagementService`
++ `resources/views/admin/users/{index,show}.blade.php` — a deliberately minimal, read-mostly
+screen over `App\Models\User` (end users), not a full CRUD screen. It exists to let a permitted
+admin see the registered-user population and terminate a user's sessions (e.g. responding to a
+compromised-account report); it does **not** let an admin create, edit, or delete a user — end
+users self-register and self-delete their own accounts (see `docs/decisions/0014-user-soft-
+deletes-and-partial-unique-indexes.md`), so there is no "admin deletes a user" action to build.
+
+This is why `Modules/Core/config/permissions.php` gives `users.*` only three actions —
+`users.list`, `users.view`, `users.update` — instead of the five-action `list`/`view`/`create`/
+`update`/`delete` pattern every other admin-manageable resource uses (`docs/decisions/0009-
+granular-crud-admin-permissions.md`). This is a deliberate, documented asymmetry, not an
+inconsistency to "fix" by adding `users.create`/`users.delete` permissions that would gate features
+that don't exist. `users.update` currently covers exactly one action: revoking all of a target
+user's sessions (`DELETE /admin/users/{user}/sessions`) — soft-deleted users are excluded from the
+listing automatically (the repository queries through the model, so Eloquent's `SoftDeletes`
+global scope applies with no extra code).
+
+## Settings screen
+
+`app/Http/Controllers/Admin/SiteSettingsController` + `Modules\Core\Services\Admin\
+SiteSettingsService` + `resources/views/admin/settings/edit.blade.php` — manages the single
+`Modules\Core\Models\SiteSetting` row (branding/contact/social config: site name/title, logo,
+contact email/phone/address, social links). `GET|PUT /admin/settings`, plus
+`DELETE /admin/settings/logo`.
+
+Same asymmetry as the Users screen above: `settings.view`/`settings.update` is a 2-action
+permission set, not the usual 5 — there is no list/create/delete for a singleton row that always
+exists (`SiteSetting::current()`/`SiteSettingSeeder` guarantee it). The data is also readable
+without authentication at `GET /api/v1/core/settings` for other clients — see
+`docs/api/conventions.md` § Public, unauthenticated read endpoints.
+
+## Theme and assets
+
+The dashboard uses **Velzon Material** (a vendored Bootstrap 5 static export, vertical sidebar
+layout), not a placeholder — see `docs/decisions/0021-velzon-material-admin-theme.md` for the full
+rationale, including several deliberate omissions from the original export (a booby-trapped
+`layout.js`, a broken-path `plugins.js`, the full "Layout Customizer" panel).
+
+- **Assets**: a curated ~4.8 MB subset lives in `public/vendor/velzon/` (never hand-edited — a
+  theme update overwrites this directory wholesale). Project-specific CSS/JS
+  (`resources/css/admin.css`, `resources/js/admin-theme.js`) goes through the normal Vite pipeline
+  alongside the existing `resources/js/admin.js` (Echo/Reverb permissions-changed banner); the
+  theme's own pre-compiled CSS/JS is referenced via plain `asset()` calls, not bundled.
+- **Layouts**: `resources/views/admin/layouts/{app,guest}.blade.php` compose a set of partials —
+  `partials/{theme-mode-boot,head-assets,foot-scripts,foot-scripts-libs,topbar,sidebar,footer,
+  language-switcher,theme-toggle,flash}.blade.php` — plus one reusable component,
+  `<x-admin.page-header>`, that every inner view opens with.
+- **What a new admin screen touches**: `partials/sidebar.blade.php` (one nav `<li>`, `@can`-gated,
+  active state via `request()->routeIs()`) and the new view itself, which extends
+  `layouts.app`/`layouts.guest` and opens with `<x-admin.page-header>`. This replaces the
+  now-incorrect "only touches two layout files" estimate from `docs/decisions/0007-*.md` — see that
+  ADR's update note.
+- **Dark/light mode**: a single topbar toggle button, persisted both in `localStorage` (per
+  browser) and, when signed in, on the account itself (`admins.theme_mode`, via a fire-and-forget
+  `POST /admin/theme` — `App\Http\Controllers\Admin\ThemeController`) so it follows the admin
+  across devices. See ADR 0021's update note for why this changed from browser-only, and for a
+  real `app.js` crash that had silently disabled the toggle entirely before being caught and
+  fixed.
+
+## Localization (EN/AR, RTL)
+
+Full detail: `docs/decisions/0022-admin-dashboard-en-ar-localization.md`.
+
+- `admins.preferred_language` (`Modules\Core\Enums\Language`, same enum/shape as
+  `user_profiles.preferred_language`) is the source of truth for a signed-in admin's language;
+  `App\Http\Middleware\SetAdminLocale` (wrapping the *entire* `routes/admin.php` group in
+  `bootstrap/app.php`, including the guest routes) resolves it each request: DB column → a
+  long-lived `admin_locale` cookie (not the session — see ADR 0022's update note for why) →
+  `Language::English`. It deliberately does not fall back to `config('app.locale')` — see the ADR
+  for the feedback-loop bug that fallback caused. `AuthController::store()` adopts the cookie
+  value into the DB on login, so a language picked on the login page actually sticks.
+  `App\Support\AdminTheme` is the single place both layouts and `partials/head-assets.blade.php`
+  read the active language/direction/stylesheet-suffix from.
+- Switching language is `POST admin/locale` (`admin.locale.update`), reachable outside both the
+  `guest:admin` and `auth:admin` groups and carrying no `can:` permission — a self-service
+  preference like `profile.edit`/`update`.
+- Translations: root `lang/{en,ar}/admin.php` (admin dashboard's own UI strings) and the framework
+  files generated by `laravel-lang/common`; `Modules/Core/lang/{en,ar}/*` under an explicit
+  `core::` namespace (see `CoreServiceProvider::registerTranslations()`) for Core service/rule
+  messages that render inside admin screens. **Never create `resources/lang/`** — its mere
+  existence relocates the whole application's translation root away from `lang/`.
+
 ## What's still open
 
 - No `AuditLog` yet (`docs/modules/core.md` § Admin) — admin actions (login, role/permission
@@ -112,5 +198,5 @@ or revoking Super Admin status is a separate, deliberately out-of-band operation
   internal `AdminCrmLead`/`AdminCrmActivity` sales CRM are Phase 7 per `docs/business/roadmap.md`
   and don't exist yet — `DashboardController` is deliberately thin until there's real
   cross-module data to aggregate.
-- The dashboard theme integration is a placeholder (`resources/views/admin/layouts/*.blade.php`
-  has minimal inline CSS) — swapping in a real theme only touches those two layout files.
+- `AdminResetPasswordNotification` is still sent in the app's default locale regardless of the
+  target admin's `preferred_language` — noted as a known gap in ADR 0022, not fixed there.

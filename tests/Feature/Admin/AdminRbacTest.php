@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Modules\Core\Enums\AdminStatus;
 use Modules\Core\Models\Admin;
@@ -60,5 +61,35 @@ class AdminRbacTest extends TestCase
         $this->actingAs($superAdmin, 'admin')->get('/admin/admins')->assertOk();
         $this->actingAs($superAdmin, 'admin')->get('/admin/admins/create')->assertOk();
         $this->actingAs($superAdmin, 'admin')->get('/admin/roles')->assertOk();
+    }
+
+    public function test_admin_with_only_users_list_permission_can_list_but_not_view_or_manage_sessions(): void
+    {
+        Permission::findOrCreate('users.list', 'admin');
+        Permission::findOrCreate('users.view', 'admin');
+        Permission::findOrCreate('users.update', 'admin');
+
+        $role = Role::findOrCreate('UsersLister', 'admin');
+        $role->syncPermissions(['users.list']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($admin, 'admin')->get('/admin/users')->assertOk();
+        $this->actingAs($admin, 'admin')->get("/admin/users/{$user->id}")->assertForbidden();
+        $this->actingAs($admin, 'admin')->delete("/admin/users/{$user->id}/sessions")->assertForbidden();
+    }
+
+    public function test_super_admin_bypasses_the_users_permission_checks_too(): void
+    {
+        $superAdmin = $this->admin(superAdmin: true);
+        $user = User::factory()->create();
+        $user->createToken('device');
+
+        $this->actingAs($superAdmin, 'admin')->get('/admin/users')->assertOk();
+        $this->actingAs($superAdmin, 'admin')->get("/admin/users/{$user->id}")->assertOk();
+        $this->actingAs($superAdmin, 'admin')->delete("/admin/users/{$user->id}/sessions")->assertRedirect();
     }
 }

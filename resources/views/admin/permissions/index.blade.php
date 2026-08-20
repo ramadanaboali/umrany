@@ -1,40 +1,44 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Permissions')
+@section('title', __('admin.permissions.title'))
 
 @section('content')
-    <p style="color:#6b7280; font-size:.85rem;">
-        The permission catalog is defined in code and expands automatically as new admin screens
-        ship. To grant a permission to admins, assign it to a
-        <a href="{{ route('admin.roles.index') }}">role</a> instead.
-    </p>
+    <div class="card">
+        <div class="card-body">
+            <p class="text-muted fs-13">
+                {!! __('admin.permissions.intro', ['role_link' => '<a href="'.route('admin.roles.index').'">'.__('admin.permissions.role_link').'</a>']) !!}
+            </p>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Resource</th>
-                @foreach ($actions as $action)
-                    <th style="text-transform:capitalize;">{{ $action }}</th>
-                @endforeach
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($matrix as $resource => $permissions)
-                <tr>
-                    <td style="text-transform:capitalize;">{{ $resource }}</td>
-                    @foreach ($actions as $action)
-                        <td>
-                            @if ($permissions->has($action))
-                                <span title="{{ $permissions[$action]->name }}">
-                                    {{ $permissions[$action]->roles->pluck('name')->join(', ') ?: '—' }}
-                                </span>
-                            @else
-                                <span style="color:#d1d5db;">n/a</span>
-                            @endif
-                        </td>
-                    @endforeach
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
+            <div class="table-responsive">
+                <table class="table table-nowrap align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{ __('admin.permissions.resource') }}</th>
+                            @foreach ($actions as $action)
+                                <th class="text-capitalize">{{ $action }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($matrix as $resource => $permissions)
+                            <tr>
+                                <td class="text-capitalize">{{ $resource }}</td>
+                                @foreach ($actions as $action)
+                                    <td>
+                                        @if ($permissions->has($action))
+                                            <span title="{{ $permissions[$action]->name }}">
+                                                {{ $permissions[$action]->roles->pluck('name')->join(', ') ?: __('admin.common.none') }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted opacity-50">{{ __('admin.permissions.not_applicable') }}</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 @endsection

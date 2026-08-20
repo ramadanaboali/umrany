@@ -4,22 +4,41 @@ notifications, finance/wallets, reports, and admin/RBAC for the whole UMRANY pla
 See `docs/modules/core.md` for the full reference (business objectives, FR groupings, source-doc
 API prefixes per sub-area).
 
-**Implementation status**: Auth, Profile, Provider identity/verification (manual documents only —
-no government-CR integration yet), and Admin/RBAC are built and tested (see "What's actually
-implemented" below). Subscription, Chat, Notification, Finance/Wallet, Reports, CMS/SEO,
-`SystemSetting`, `AuditLog`, and the internal sales CRM are still just the target-domain
-description below, not implemented — this is a phased build per `docs/business/roadmap.md`, not a
-gap to fill speculatively.
+**Implementation status**: Auth (including TOTP MFA, password history, soft-delete/account
+deletion, session management), Profile, Provider identity/verification (manual documents only —
+no government-CR integration yet), in-app + email Notifications (push deferred), Admin/RBAC, and
+`SiteSetting` (branding/contact/social config) are built and tested (see "What's actually
+implemented" below). Subscription, Chat, Finance/Wallet, Reports, CMS/SEO, `SystemSetting`,
+`AuditLog`, and the internal sales CRM are still just the target-domain description below, not
+implemented — this is a phased build per `docs/business/roadmap.md`, not a gap to fill
+speculatively.
 
 ## Entities
 
-- User — core account (mobile/email unique, password, terms acceptance, verification/account status)
-- UserSession — active login session per device; user- or admin-terminable, configurable expiry
+- User — core account (mobile/email unique, password, terms acceptance, verification/account
+  status, soft-deletable, `account_types` — captured registration intent, see
+  `docs/decisions/0016-account-type-intent-capture.md`)
+- UserSession — **not a dedicated table**: a Sanctum `personal_access_tokens` row already is the
+  per-device session record (`Http/Controllers/SessionController`), configurable expiry via
+  `config('sanctum.expiration')` (`SANCTUM_EXPIRATION_MINUTES`), pruned daily by
+  `sanctum:prune-expired` (see `docs/architecture/infrastructure.md` § Scheduled tasks). User- and
+  admin-terminable (the admin side via the Users screen — see `docs/architecture/admin-portal.md`).
 - VerificationCode — single-use, time-limited code for account verification / password reset
-- PasswordReset — forgot-password/reset-password flow record
-- UserDevice — device tied to a user, used for session and new-device-login detection
+- UserMfaSetting / MfaRecoveryCode — TOTP MFA secret + confirmation state, and single-use hashed
+  recovery codes. See `docs/decisions/0012-totp-mfa-with-two-step-login.md`.
+- PasswordHistory — append-only, shared (polymorphic) by both `User` and `Admin` — see
+  `docs/decisions/0013-config-driven-password-policy-and-history.md`.
+- PasswordReset — **not a dedicated table**: the same `VerificationCode` mechanism (purpose
+  `password_reset`) handles this for end users; admins use Laravel's native password-broker table
+  (`admin_password_reset_tokens`) instead — see `docs/architecture/admin-portal.md` § Authentication.
+- UserDevice — device tied to a user, used for new-device-login detection
+  (`Services/DeviceRecognitionService`) — see `docs/decisions/0018-user-device-recognition.md`.
 - UserProfile — one-to-one profile: name, avatar, mobile, email, country, city, address, language, currency
-- NotificationPreference — per-user/per-channel/per-event-type opt-in (in-app, push, email)
+- NotificationPreference — per-user/per-event-type opt-in, one boolean column per channel (in-app,
+  email built; push deferred) — see `docs/decisions/0017-notification-preferences-schema.md`.
+  In-app notifications themselves are **not a custom model** — the framework's own
+  `DatabaseNotification`/`Notifiable::notifications()` is reused directly, matching this module's
+  existing "reuse Sanctum's own token table" precedent.
 - Country / City / Currency — shared master data for addresses and localization
 - Provider — service-provider business profile (one per user account); company info, categories, verification, subscription-gated features
 - ProviderCategory / ProviderSubcategory — business category taxonomy for providers
@@ -45,12 +64,17 @@ gap to fill speculatively.
 - Refund — E-Commerce refund record
 - Withdrawal — wallet withdrawal request
 - FinancialAdjustment — admin-only, reason-mandatory, logged wallet adjustment (always a separate ledger entry, never edits/deletes originals)
-- Admin — administrative user account (distinct from end-user accounts)
+- Admin — administrative user account (distinct from end-user accounts). `preferred_language`
+  (`Enums\Language`, shared with `UserProfile::preferred_language`) drives the admin dashboard's
+  UI language and RTL/LTR direction — see `docs/decisions/0022-admin-dashboard-en-ar-
+  localization.md`. `theme_mode` (`Enums\ThemeMode`) is the account-level half of the dark/light
+  mode toggle — see `docs/decisions/0021-velzon-material-admin-theme.md`'s update note.
 - Role / Permission / RolePermission / AdminRole — dynamic RBAC: action-level permissions assigned to admin-created roles (role names not hard-coded)
 - AdminCrmLead / AdminCrmActivity — UMRANY's internal sales/provider-acquisition CRM (separate from ERP's provider-facing CRM)
 - DynamicPage / SeoMetadata — CMS pages and SEO landing-page metadata
 - Category / Subcategory / Unit — centralized master data (project/product categories, units, configurable lists), bilingual AR/EN
-- SystemSetting — configurable business settings (commission, gateway fees, min withdrawal, moderation mode, upload limits, etc.)
+- SystemSetting — configurable business settings (commission, gateway fees, min withdrawal, moderation mode, upload limits, etc.) — **not built**; see `SiteSetting` below, which is a separate, narrower entity, not a partial implementation of this one.
+- SiteSetting — **built**. Single-row platform branding/contact/social config (site name/title, logo, contact email/phone/address, social links keyed by `Enums\SocialPlatform`). Admin-managed via `app/Http/Controllers/Admin/SiteSettingsController` (`GET|PUT /admin/settings`, permissions `settings.view`/`settings.update` — 2 actions, not the usual 5, since it's a singleton row with no list/create/delete screen), publicly readable via `GET /api/v1/core/settings` (`Http/Controllers/SiteSettingController`) for other clients (mobile app, marketing site).
 - AuditLog — immutable log of sensitive admin/financial actions
 - SupportTicket / SupportTicketMessage — support ticketing (Open/In Progress/Waiting for User/Resolved/Closed)
 - Integration — visibility record for configured external integrations (gov CR, payment gateway, email, push, analytics)
@@ -123,24 +147,48 @@ reconsider the design (likely needs a new Contract or Event instead).
   and cache round-trip; returns 503 if any fail. `GET /api/v1/core/health` is a plain liveness
   check. Both are intentionally outside `auth:sanctum`/`module.entitlement` — monitors must be able
   to hit them unauthenticated.
-- **Auth** (`Http/Controllers/AuthController`, `SessionController`): register (mobile or email),
-  login, logout, single-device-revoke session listing, resend/verify via a 6-digit OTP code
-  (`Models/VerificationCode`, hashed at rest, capped at 5 guess attempts per code), forgot/reset
-  password via the *same* OTP mechanism rather than Laravel's email-only broker — deliberately, so
-  a mobile-only account (no email on file) can still reset its password. `Enums/VerificationCodePurpose`
-  (`account_verification` vs `password_reset`) is a separate axis from `Enums/VerificationCodeType`
-  (the delivery channel, `email` vs `mobile`) — don't conflate the two when adding a new
-  code-gated flow. Named rate limiters (`login`, `verification-code`,
-  `verification-code-consume`, `password-reset`) are registered in `app/Providers/AppServiceProvider`
-  and applied per-route in `routes/api.php` — see `docs/api/conventions.md` § Rate limiting.
+- **Auth** (`Http/Controllers/AuthController`, `SessionController`, `MfaController`): register
+  (mobile or email, optional `account_types` intent + `mfa_enroll`), login (two-step when MFA is
+  enabled — see below), logout/logout-all, session listing + individual/all-others revocation
+  (configurable expiry via `config('sanctum.expiration')`, pruned daily —
+  `docs/architecture/infrastructure.md` § Scheduled tasks), self-service account deletion
+  (password-confirmed, soft-deletes — `docs/decisions/0014-user-soft-deletes-and-partial-unique-
+  indexes.md`), resend/verify via a 6-digit OTP code (`Models/VerificationCode`, hashed at rest,
+  capped at 5 guess attempts per code), forgot/reset password via the *same* OTP mechanism rather
+  than Laravel's email-only broker — deliberately, so a mobile-only account (no email on file) can
+  still reset its password. `Enums/VerificationCodePurpose` (`account_verification` vs
+  `password_reset`) is a separate axis from `Enums/VerificationCodeType` (the delivery channel,
+  `email` vs `mobile`) — don't conflate the two when adding a new code-gated flow. Named rate
+  limiters (`login`, `verification-code`, `verification-code-consume`, `password-reset`,
+  `mutations`, `mfa-challenge`) are registered in `app/Providers/AppServiceProvider` and applied
+  per-route in `routes/api.php` — see `docs/api/conventions.md` § Rate limiting. Account
+  verification gates most-but-not-all authenticated endpoints — see `docs/decisions/0015-account-
+  verification-gate-policy.md` for the exact rule and route split.
+- **TOTP MFA** (`MfaController`, `Services/MfaService`, `Models/UserMfaSetting`,
+  `Models/MfaRecoveryCode`): opt-in, default disabled, enrollable at registration or via profile;
+  never enforced until a confirm step succeeds. A confirmed setting switches login into a two-step
+  challenge/response exchange rather than issuing a token directly. See `docs/decisions/0012-totp-
+  mfa-with-two-step-login.md` for the full mechanics (replay protection, challenge caching,
+  recovery codes).
+- **Password history** (`Services/PasswordHistoryService`, `Models/PasswordHistory`): shared by
+  both `User` and `Admin` via a polymorphic table; config-driven depth
+  (`core.password_policy.history_count`). Every password-validating FormRequest builds its rule
+  from the single `Password::defaults()` closure in `CoreServiceProvider::boot()`, sourced from
+  `config('core.password_policy.*')` — see `docs/decisions/0013-config-driven-password-policy-and-
+  history.md`.
 - **Profile** (`Http/Controllers/ProfileController`, `Models/UserProfile`): view/update
   (full name, address, country/city with cross-validation that the city belongs to the selected
-  country, at-least-one-of-email/mobile guarded on update), avatar upload/remove
-  (`spatie/laravel-medialibrary` is available in the stack but not used here — plain
-  `Storage::disk('public')`, since avatars don't need conversions/responsive variants), language,
-  currency. `Models/Country`/`City`/`Currency` are public read-only master data
-  (`Http/Controllers/MasterDataController`) — writes to them are an Admin-portal concern, not
-  exposed on this controller.
+  country, at-least-one-of-email/mobile guarded on update), language, currency. Avatar upload/
+  remove re-encodes every upload via `intervention/image-laravel` (GD driver) to a configured
+  width/height/format/quality (`config('core.avatar.*')`, default WebP) regardless of what was
+  submitted — see `docs/decisions/0019-intervention-image-for-avatar-optimization.md`.
+  `spatie/laravel-medialibrary` is available in the stack but deliberately not used here — plain
+  `Storage::disk(config('core.avatar.disk'))`, since avatars don't need conversions/responsive
+  variants beyond the one fixed re-encode. `Models/Country`/`City`/`Currency` are public read-only
+  master data (`Http/Controllers/MasterDataController`) — writes to them are an Admin-portal
+  concern, not exposed on this controller. Each of `Country`/`Currency` has a DB-backed
+  `is_default` flag (`docs/decisions/0020-database-backed-platform-defaults.md`), not a config
+  lookup.
 - **Provider identity** (`Http/Controllers/ProviderController`, `Models/Provider`,
   `ProviderVerification`, `ProviderDocument`): activate (one per account, enforced at the DB level
   too), update, submit verification documents, upload/remove logo and cover image
@@ -150,9 +198,20 @@ reconsider the design (likely needs a new Contract or Event instead).
   `not_submitted`/`rejected`/`expired`, never while a review is already in progress or once
   approved. Government-CR integration, Business Categories, and Portfolio/Certificates/Statistics
   are not built — see `docs/modules/core.md` § Provider for the full target shape.
-- **Capability resolution** (`Contracts/UserCapabilityResolver` + `Services/CapabilityResolver`,
+- **Capability resolution** (`Contracts/UserCapabilityResolver` + `Services/CapabilityService`,
   `Http/Controllers/CapabilityController` at `GET /api/v1/core/me/capabilities`): see
   `docs/architecture/module-boundaries.md` § User capability resolution for the full contract.
+  `account_types` (captured registration intent — `docs/decisions/0016-account-type-intent-
+  capture.md`) is echoed here but is never an authorization source.
+- **Notifications** (`Http/Controllers/NotificationController`,
+  `NotificationPreferenceController`, `Notifications/BaseUserNotification` and its 8 concrete
+  subclasses): in-app (framework's own `DatabaseNotification`) + email built, push deferred. Every
+  concrete notification checks `Services/NotificationPreferenceService::allows()` in its `via()` —
+  see `docs/decisions/0017-notification-preferences-schema.md`. New-device-login detection is a
+  dedicated `Models/UserDevice` table + `Services/DeviceRecognitionService`, not inferred from
+  Sanctum tokens — see `docs/decisions/0018-user-device-recognition.md`. Two of the 8 events
+  (`account_suspended`/`account_activated`) have notification classes but no trigger site yet — no
+  admin action changes a user's status today; not built speculatively (Rule 0).
 - **Admin/RBAC** (`Models/Admin`, `spatie/laravel-permission` on the `admin` guard): see
   `docs/architecture/admin-portal.md` for the full reference — the UI lives at the application
   root (`app/Http/Controllers/Admin`), not in this module, but the `Admin` model and the
@@ -171,14 +230,19 @@ reconsider the design (likely needs a new Contract or Event instead).
   already-signed-in admin's dashboard can surface a live refresh banner (`docs/decisions/
   0008-admin-rbac-live-refresh-via-reverb.md`). Super Admins are excluded from the admins listing
   and dashboard count (`Admin::excludingSuperAdmins()`).
-- **Known minor gap**: `php artisan scribe:generate` fails its live-example dry run for `PUT
-  /profile`, `PUT /providers/me`, and every file-upload endpoint (`POST /profile/avatar`,
-  `POST /providers/me/logo`, `POST /providers/me/cover`) — the first two hit a real null
-  `UserProfile`/`Provider` relation on Scribe's synthetic test user; the file-upload ones fail on
-  `fopen((binary))` while trying to turn the doc-block's `Example: (binary)` placeholder into a
-  literal file. Docs still generate fully (route list, validation rules, doc-blocks); only the
-  auto-captured example *response* for these is missing. Not a bug in the endpoints themselves —
-  confirmed working via Pest tests and manual testing with real data.
+- **`SiteSetting`** (`Models/SiteSetting`, `Services/Admin/SiteSettingsService`,
+  `Repositories/EloquentSiteSettingRepository`): a single-row table (id=1, guaranteed by
+  `Database/Seeders/SiteSettingSeeder` via `SiteSetting::current()`'s `firstOrCreate`), not a
+  key-value store — deliberately narrower than, and never to be confused with, the still-not-built
+  `SystemSetting` above. Logo upload/removal mirrors `ProviderService::updateLogo()`/
+  `removeLogo()`'s exact store/delete-existing pattern (`public` disk). Admin screen at
+  `GET|PUT /admin/settings` (`app/Http/Controllers/Admin/SiteSettingsController`, root app, not
+  this module — same placement rule as every other admin screen); public read at
+  `GET /api/v1/core/settings` (`Http/Controllers/SiteSettingController`) for other clients.
+- **API docs**: `dedoc/scramble`, not Scribe (`docs/decisions/0023-scramble-over-scribe.md`) — a
+  purely static-analysis-based tool with no live-response-capture step, so the dry-run failures
+  Scribe used to hit on file-upload endpoints and two `PUT` routes with a null relation on its
+  synthetic test user simply don't apply here; there is nothing equivalent to work around.
 
 ## Gotchas
 
@@ -232,3 +296,28 @@ reconsider the design (likely needs a new Contract or Event instead).
   bare `HasOne` return type) for Larastan to infer the related model's properties through the
   relation — e.g. `$user->profile->full_name`. Every relation in this module follows this pattern;
   match it for new ones.
+- **Partial unique indexes are how soft-delete-aware uniqueness and single-default-row
+  invariants are enforced at the DB level, not just in FormRequest validation** — a
+  `Rule::unique(...)->whereNull('deleted_at')` validation rule alone would still let a raw
+  `deleted_at`-blind unique constraint reject a legitimate re-registration. A plain `WHERE deleted_at
+  IS NULL` partial condition needs no driver branching (identical syntax on Postgres and the
+  SQLite ≥3.8 the test suite runs); a boolean-literal condition like `WHERE is_default` **does**
+  need branching (`WHERE is_default` on Postgres vs `WHERE is_default = 1` on SQLite). See
+  `docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md` and `docs/decisions/0020-
+  database-backed-platform-defaults.md`.
+- **`UserMfaSetting.secret` is `encrypted` (reversible), not hashed** — TOTP verification needs the
+  plaintext secret back to compute the expected code, so it's encrypted with the app's `APP_KEY`
+  rather than one-way hashed like a password. This means **rotating `APP_KEY` invalidates every
+  stored MFA secret** (they become undecryptable) — there is no re-encryption/migration path built
+  for that today; a real `APP_KEY` rotation would need every user to re-enroll MFA. Recovery codes
+  are hashed (one-way, like a password), not encrypted, since they're never read back in plaintext.
+- **The capability cache key is versioned (`umrany:core:capabilities:v3:{userId}`) — bump the
+  version suffix any time `Data\UserCapabilities`'s constructor shape changes, *or* the cached
+  representation itself changes.** A stale cached entry under the old key being handed to code
+  that expects a different shape/format has now caused a real `__PHP_Incomplete_Class`-class
+  failure twice: `v1` → `v2` (adding `isProjectOwner`/`accountTypes` changed the constructor
+  arity), and `v2` → `v3` (`CapabilityService::capabilitiesFor()` stopped caching the raw `Data`
+  object — which is fundamentally unsafe to round-trip through PHP's native serialize, confirmed
+  by hitting this exact failure live with an entry whose fields matched the current shape exactly
+  — and started caching/rehydrating its plain array form via `UserCapabilities::from()` instead).
+  Bump again on either kind of change to this class, not just a constructor-shape change.

@@ -6,6 +6,8 @@ namespace Modules\Core\Tests\Feature\Auth;
 
 use App\Enums\UserStatus;
 use App\Models\User;
+use Modules\Core\Enums\ProviderStatus;
+use Modules\Core\Models\Provider;
 use Tests\TestCase;
 
 class LoginTest extends TestCase
@@ -82,5 +84,45 @@ class LoginTest extends TestCase
             ->assertStatus(204);
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_login_response_includes_provider_key_when_account_has_an_active_provider(): void
+    {
+        $user = User::factory()->create(['email' => 'provider-login@example.com', 'password' => 'Secr3tPass']);
+        Provider::forceCreate([
+            'user_id' => $user->id,
+            'company_name' => 'Acme',
+            'status' => ProviderStatus::Published,
+            'has_ecommerce_access' => true,
+            'has_erp_access' => false,
+        ]);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'provider-login@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertOk()
+            ->assertJsonPath('data.provider.company_name', 'Acme')
+            ->assertJsonPath('data.capabilities.is_provider', true);
+    }
+
+    public function test_login_response_omits_provider_key_for_a_plain_non_provider_user(): void
+    {
+        User::factory()->create(['email' => 'plain-login@example.com', 'password' => 'Secr3tPass']);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'plain-login@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertOk()->assertJsonMissingPath('data.provider');
+    }
+
+    public function test_login_response_includes_capabilities_structure(): void
+    {
+        User::factory()->create(['email' => 'capabilities-login@example.com', 'password' => 'Secr3tPass']);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'capabilities-login@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertOk()
+            ->assertJsonStructure(['data' => ['capabilities' => ['is_provider', 'is_project_owner', 'account_types']]]);
     }
 }

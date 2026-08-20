@@ -20,9 +20,18 @@ final class ResetPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /**
+             * Same identifier used to request the code.
+             *
+             * @example ahmed@example.com
+             */
             'login' => ['required', 'string'],
             'code' => ['required', 'digits:6'],
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+
+            /**
+             * @example NewSecr3t1
+             */
+            'password' => ['required', 'confirmed', Password::defaults()],
         ];
     }
 }

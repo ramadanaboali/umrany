@@ -3,10 +3,14 @@
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\LocaleController;
 use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SiteSettingsController;
+use App\Http\Controllers\Admin\ThemeController;
+use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,6 +30,16 @@ use Illuminate\Support\Facades\Route;
 | docs/architecture/backend-layering.md.
 */
 Route::prefix('admin')->name('admin.')->group(function () {
+    // Deliberately outside both guest:admin and auth:admin — the login/forgot-password screens
+    // need it too, and it's a self-service preference like profile.edit/update, so no `can:`
+    // permission gates it. See App\Http\Controllers\Admin\LocaleController.
+    Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
+
+    // Same placement rule as /locale above — fired by a background fetch(), not a page
+    // navigation, so it needs no `can:` permission and works pre-login too. See
+    // App\Http\Controllers\Admin\ThemeController.
+    Route::post('/theme', [ThemeController::class, 'update'])->name('theme.update');
+
     Route::middleware('guest:admin')->group(function () {
         Route::get('/login', [AuthController::class, 'create'])->name('login');
         Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:admin-login')->name('login.store');
@@ -82,6 +96,29 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // what permissions exist is only useful alongside being able to see role assignments.
         Route::middleware('can:roles.list')->group(function () {
             Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+        });
+
+        // Deliberately minimal — read-only listing + session revocation, no create/delete (end
+        // users self-register/self-delete). See Modules\Core\Services\Admin\UserManagementService.
+        Route::middleware('can:users.list')->group(function () {
+            Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        });
+        Route::middleware('can:users.view')->group(function () {
+            Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+        });
+        Route::middleware('can:users.update')->group(function () {
+            Route::delete('/users/{user}/sessions', [UserController::class, 'destroySessions'])->name('users.sessions.destroy');
+        });
+
+        // Singleton config row (Modules\Core\Models\SiteSetting::current()) — 2-action permission
+        // set, not the usual 5: there's no list/create/delete for a row that always exists. Same
+        // documented asymmetry as users.* above. See docs/architecture/admin-portal.md.
+        Route::middleware('can:settings.view')->group(function () {
+            Route::get('/settings', [SiteSettingsController::class, 'edit'])->name('settings.edit');
+        });
+        Route::middleware('can:settings.update')->group(function () {
+            Route::put('/settings', [SiteSettingsController::class, 'update'])->name('settings.update');
+            Route::delete('/settings/logo', [SiteSettingsController::class, 'destroyLogo'])->name('settings.logo.destroy');
         });
     });
 });

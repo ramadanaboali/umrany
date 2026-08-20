@@ -22,6 +22,7 @@ class CoreDatabaseSeeder extends Seeder
             RoleSeeder::class,
             AdminSeeder::class,
             MasterDataSeeder::class,
+            SiteSettingSeeder::class,
         ]);
 
         if (! app()->environment('production')) {

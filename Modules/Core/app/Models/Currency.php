@@ -17,15 +17,15 @@ class Currency extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_default' => 'boolean',
         ];
     }
 
     /**
-     * The platform-wide default currency (SAR) — see Country::default() for why this is a code
-     * lookup, not a hardcoded id.
+     * See Country::default() — same `is_default` DB flag, same rationale.
      */
     public static function default(): ?self
     {
-        return static::query()->where('code', config('core.defaults.currency_code'))->first();
+        return static::query()->where('is_default', true)->first();
     }
 }

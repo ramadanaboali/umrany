@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -52,6 +53,18 @@ return new class extends Migration
             if (! Schema::hasColumn('users', 'last_login_ip')) {
                 $table->string('last_login_ip', 45)->nullable();
             }
+
+            if (! Schema::hasColumn('users', 'deleted_at')) {
+                $table->softDeletes();
+            }
+
+            if (! Schema::hasColumn('users', 'account_types')) {
+                // Captured intent only ("I am a: owner/provider"), never an authorization source —
+                // see Modules\Core\Enums\AccountType and docs/decisions/0016-account-type-intent-
+                // capture.md. Plain JSON, not a pivot table: a closed, code-defined, small set of
+                // values with no need to query "which users chose X" at scale.
+                $table->json('account_types')->nullable()->after('status');
+            }
         });
 
         // Separate statement: an index add inside the same hasColumn-guarded block above would
@@ -61,6 +74,35 @@ return new class extends Migration
                 $table->index('status');
             });
         }
+
+        // Soft-deleting a user must free its email/mobile for someone else to register with —
+        // see docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md. The plain
+        // unique indexes from the root migration (email) and above (mobile) count soft-deleted
+        // rows too, so `Rule::unique(...)->whereNull('deleted_at')` alone would pass FormRequest
+        // validation and then hit a raw constraint violation on insert. Replace both with partial
+        // indexes that only enforce uniqueness among non-deleted rows.
+        if ($this->indexExists('users', 'users_email_unique')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropUnique('users_email_unique');
+            });
+        }
+
+        if ($this->indexExists('users', 'users_mobile_unique')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropUnique('users_mobile_unique');
+            });
+        }
+
+        // Both Postgres and SQLite (>=3.8, the test suite's driver per phpunit.xml) support
+        // partial indexes with identical `WHERE ... IS NULL` syntax — no driver branch needed
+        // here (unlike a partial index keyed on a boolean literal, where the two disagree).
+        if (! $this->indexExists('users', 'users_email_active_unique')) {
+            DB::statement('CREATE UNIQUE INDEX users_email_active_unique ON users (email) WHERE deleted_at IS NULL');
+        }
+
+        if (! $this->indexExists('users', 'users_mobile_active_unique')) {
+            DB::statement('CREATE UNIQUE INDEX users_mobile_active_unique ON users (mobile) WHERE deleted_at IS NULL');
+        }
     }
 
     /**
@@ -68,6 +110,17 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Drop the partial indexes and restore the plain unique ones before dropping the columns
+        // they reference — order matters, an index drop after dropColumn() would already be moot
+        // but doing it first keeps this symmetric with up()'s order.
+        DB::statement('DROP INDEX IF EXISTS users_email_active_unique');
+        DB::statement('DROP INDEX IF EXISTS users_mobile_active_unique');
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->unique('email', 'users_email_unique');
+            $table->unique('mobile', 'users_mobile_unique');
+        });
+
         Schema::table('users', function (Blueprint $table) {
             $table->dropIndex(['status']);
             $table->dropColumn([
@@ -75,8 +128,10 @@ return new class extends Migration
                 'mobile_verified_at',
                 'terms_accepted_at',
                 'status',
+                'account_types',
                 'last_login_at',
                 'last_login_ip',
+                'deleted_at',
             ]);
         });
 

@@ -61,10 +61,17 @@ reason. Reach for a Policy the moment there's real per-instance logic to add, no
 
 Tests are written in Pest (`pestphp/pest` + `pestphp/pest-plugin-laravel`). **Every new endpoint ships with at least one feature test** covering its primary success path; endpoints with meaningfully different authorization or validation branches get a test per branch, not just one happy-path test. Run the suite with `./vendor/bin/pest` (or `composer test` if wired up) before opening a PR.
 
-## API documentation: Scribe doc-blocks are mandatory
+## API documentation: Scramble annotations, where inference falls short
 
-Every new endpoint needs Scribe-compatible doc-blocks on its controller method (`@group`, `@bodyParam`, `@response`, and any relevant `@authenticated`/`@urlParam` annotations) — not as an afterthought, but as part of shipping the endpoint. Scribe generates `/docs`, `/docs.openapi`, and `/docs.postman` directly from the registered route list and these doc-blocks (see `tech-stack.md` for why Scribe was chosen); an endpoint without doc-blocks either doesn't show up correctly in those outputs or shows up with no usable description, which defeats the point of having docs generated from the actual routes instead of hand-maintained separately. Regenerate with `php artisan scribe:generate` after adding or changing any documented route.
+Every new endpoint should read correctly in `/docs` — not as an afterthought, but as part of
+shipping the endpoint. `dedoc/scramble` infers most of an endpoint's shape automatically from its
+FormRequest and Resource; add a `#[Group]` attribute on the controller class, put descriptions/
+examples as `/** ... */` doc-comments above the relevant `rules()` entries, and reach for a
+hand-written `#[Response(...)]` only where inference can't see the answer (see `docs/api/
+conventions.md` § API documentation (Scramble) for the exact pattern, and `tech-stack.md`/
+`docs/decisions/0023-scramble-over-scribe.md` for why Scramble was chosen). Nothing to regenerate
+— `/docs` is generated live on every request.
 
 ## Practical shortcut
 
-The `.claude/skills/laravel-endpoint` skill scaffolds a new endpoint following all of the above in one pass — Controller, FormRequest, Action, Resource, route registration, Scribe doc-block, and a starter Pest test — so that a new endpoint conforms by construction rather than by post-hoc review.
+The `.claude/skills/laravel-endpoint` skill scaffolds a new endpoint following all of the above in one pass — Controller, FormRequest, Action, Resource, route registration, Scramble annotations, and a starter Pest test — so that a new endpoint conforms by construction rather than by post-hoc review.

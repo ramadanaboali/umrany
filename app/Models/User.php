@@ -11,10 +11,14 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Modules\Core\Enums\AccountType;
 use Modules\Core\Models\Provider;
+use Modules\Core\Models\UserDevice;
+use Modules\Core\Models\UserMfaSetting;
 use Modules\Core\Models\UserProfile;
 use Modules\Core\Models\VerificationCode;
 
@@ -29,7 +33,7 @@ use Modules\Core\Models\VerificationCode;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /**
      * Get the attributes that should be cast.
@@ -44,6 +48,7 @@ class User extends Authenticatable
             'terms_accepted_at' => 'datetime',
             'last_login_at' => 'datetime',
             'status' => UserStatus::class,
+            'account_types' => 'array',
             'password' => 'hashed',
         ];
     }
@@ -73,6 +78,22 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasOne<UserMfaSetting, $this>
+     */
+    public function mfaSetting(): HasOne
+    {
+        return $this->hasOne(UserMfaSetting::class);
+    }
+
+    /**
+     * @return HasMany<UserDevice, $this>
+     */
+    public function devices(): HasMany
+    {
+        return $this->hasMany(UserDevice::class);
+    }
+
+    /**
      * FR-AUTH-002: "only verified accounts may access protected services." Registration accepts
      * either mobile or email (FR-AUTH-001), so verification of either channel satisfies this —
      * there is no requirement that both be verified.
@@ -85,5 +106,23 @@ class User extends Authenticatable
     public function canAuthenticate(): bool
     {
         return $this->status->canAuthenticate();
+    }
+
+    /**
+     * True only once MFA enrollment has been confirmed with a real code — an unconfirmed
+     * (abandoned) enrollment must never gate login. See Modules\Core\Services\MfaService.
+     */
+    public function hasMfaEnabled(): bool
+    {
+        return $this->mfaSetting !== null && $this->mfaSetting->isConfirmed();
+    }
+
+    /**
+     * `account_types` is captured intent from registration only — never an authorization source.
+     * See Modules\Core\Enums\AccountType.
+     */
+    public function hasAccountType(AccountType $type): bool
+    {
+        return in_array($type->value, $this->account_types ?? [], true);
     }
 }

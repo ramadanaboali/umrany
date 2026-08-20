@@ -35,7 +35,7 @@ class AdminListingTest extends TestCase
         $this->actingAs($superAdmin, 'admin')
             ->get('/admin')
             ->assertOk()
-            ->assertSee('1 admin account(s)');
+            ->assertSee(trans_choice('admin.dashboard.admin_count', 1, ['count' => 1]));
     }
 
     public function test_super_admins_are_excluded_from_the_admins_index_listing(): void

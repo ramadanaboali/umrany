@@ -100,4 +100,38 @@ class RoleManagementTest extends TestCase
 
         Event::assertDispatched(AdminPermissionsChanged::class, fn ($event) => $event->adminId === $holder->id);
     }
+
+    /**
+     * The roles index listing shows only the last 5 of a role's permissions plus a "+N more"
+     * badge, rather than every permission — a role with many permissions was making the table
+     * unreadable.
+     */
+    public function test_roles_index_shows_only_the_last_five_permissions_with_a_more_indicator(): void
+    {
+        $permissionNames = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $permissionNames[] = Permission::findOrCreate("test.perm{$i}", 'admin')->name;
+        }
+
+        $role = Role::findOrCreate('Everything', 'admin');
+        $role->syncPermissions($permissionNames);
+
+        // Match the view's own ordering (Role::permissions() with no explicit orderBy) rather
+        // than assuming it equals creation order — avoids a flaky assumption about SQL row order.
+        $ordered = $role->fresh('permissions')->permissions->pluck('name')->all();
+        $shown = array_slice($ordered, -5);
+        $hidden = array_slice($ordered, 0, count($ordered) - 5);
+
+        $response = $this->actingAs($this->superAdmin(), 'admin')
+            ->get('/admin/roles')
+            ->assertOk();
+
+        foreach ($shown as $name) {
+            $response->assertSee($name);
+        }
+        foreach ($hidden as $name) {
+            $response->assertDontSee($name);
+        }
+        $response->assertSee('+'.count($hidden));
+    }
 }

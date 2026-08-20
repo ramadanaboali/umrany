@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Notification;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Models\VerificationCode;
-use Modules\Core\Notifications\PasswordChangedNotification;
+use Modules\Core\Notifications\PasswordResetCompletedNotification;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -58,7 +58,7 @@ class PasswordResetTest extends TestCase
 
         $this->assertTrue(Hash::check('NewPassword1', $user->refresh()->password));
         $this->assertDatabaseCount('personal_access_tokens', 0);
-        Notification::assertSentTo($user, PasswordChangedNotification::class);
+        Notification::assertSentTo($user, PasswordResetCompletedNotification::class);
     }
 
     public function test_reset_password_with_wrong_code_fails_without_leaking_account_existence(): void

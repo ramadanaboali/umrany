@@ -6,9 +6,17 @@ namespace Modules\Core\Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use Modules\Core\Enums\AccountType;
+use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Enums\ProviderStatus;
 use Modules\Core\Enums\ProviderVerificationStatus;
+use Modules\Core\Models\MfaRecoveryCode;
+use Modules\Core\Models\NotificationPreference;
+use Modules\Core\Models\PasswordHistory;
 use Modules\Core\Models\Provider;
+use Modules\Core\Models\UserDevice;
+use Modules\Core\Models\UserMfaSetting;
 
 /**
  * Demonstrates the platform's core architectural claim end-to-end: one account can simultaneously
@@ -21,6 +29,21 @@ use Modules\Core\Models\Provider;
  */
 final class DemoUserSeeder extends Seeder
 {
+    /**
+     * A fixed (not randomly generated) base32 TOTP secret so this account's MFA can actually be
+     * enrolled in a real authenticator app for manual dev testing, and so Pest tests can compute a
+     * valid code for it deterministically instead of driving the enrollment flow first.
+     */
+    private const DEMO_MFA_SECRET = 'JBSWY3DPEHPK3PXP';
+
+    /**
+     * @var array<int, string>
+     */
+    private const DEMO_RECOVERY_CODES = [
+        'demo0-code0', 'demo1-code1', 'demo2-code2', 'demo3-code3',
+        'demo4-code4', 'demo5-code5', 'demo6-code6', 'demo7-code7',
+    ];
+
     public function run(): void
     {
         $multiHat = User::query()->updateOrCreate(
@@ -31,6 +54,7 @@ final class DemoUserSeeder extends Seeder
                 'email_verified_at' => now(),
                 'terms_accepted_at' => now(),
                 'status' => 'active',
+                'account_types' => [AccountType::ProjectOwner->value, AccountType::Provider->value],
             ],
         );
 
@@ -54,6 +78,11 @@ final class DemoUserSeeder extends Seeder
             ['status' => ProviderVerificationStatus::Approved, 'submitted_at' => now(), 'reviewed_at' => now()],
         );
 
+        $this->seedMfa($multiHat);
+        $this->seedDevice($multiHat, 'Demo MacBook Pro');
+        $this->seedNotificationPreferences($multiHat);
+        $this->seedPasswordHistory($multiHat);
+
         $plainUser = User::query()->updateOrCreate(
             ['email' => 'demo.user@umrany.test'],
             [
@@ -62,12 +91,69 @@ final class DemoUserSeeder extends Seeder
                 'email_verified_at' => now(),
                 'terms_accepted_at' => now(),
                 'status' => 'active',
+                'account_types' => [AccountType::ProjectOwner->value],
             ],
         );
 
         $plainUser->profile()->updateOrCreate(
             ['user_id' => $plainUser->id],
             ['full_name' => 'Demo Registered User', 'preferred_language' => 'en'],
+        );
+
+        $this->seedDevice($plainUser, 'Demo iPhone');
+        $this->seedPasswordHistory($plainUser);
+    }
+
+    /**
+     * Confirmed MFA with a known secret + 8 known recovery codes — exercises the "account has MFA
+     * enabled" path (two-step login, capability responses) without every test having to drive the
+     * enroll→confirm flow first.
+     */
+    private function seedMfa(User $user): void
+    {
+        UserMfaSetting::query()->updateOrCreate(
+            ['user_id' => $user->id],
+            ['secret' => self::DEMO_MFA_SECRET, 'confirmed_at' => now(), 'last_used_timestamp' => null],
+        );
+
+        MfaRecoveryCode::query()->where('user_id', $user->id)->delete();
+
+        foreach (self::DEMO_RECOVERY_CODES as $code) {
+            MfaRecoveryCode::query()->create(['user_id' => $user->id, 'code_hash' => Hash::make($code)]);
+        }
+    }
+
+    private function seedDevice(User $user, string $deviceName): void
+    {
+        UserDevice::query()->updateOrCreate(
+            ['user_id' => $user->id, 'fingerprint' => hash('sha256', "seeded-demo-agent|{$deviceName}")],
+            [
+                'device_name' => $deviceName,
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'seeded-demo-agent',
+                'first_seen_at' => now(),
+                'last_seen_at' => now(),
+            ],
+        );
+    }
+
+    /**
+     * One non-default row (email disabled for the non-mandatory "new device login" event) so the
+     * preferences matrix demonstrably differs from an all-defaults account.
+     */
+    private function seedNotificationPreferences(User $user): void
+    {
+        NotificationPreference::query()->updateOrCreate(
+            ['user_id' => $user->id, 'event_type' => NotificationEvent::NewDeviceLogin->value],
+            ['in_app' => true, 'email' => false],
+        );
+    }
+
+    private function seedPasswordHistory(User $user): void
+    {
+        PasswordHistory::query()->firstOrCreate(
+            ['authenticatable_type' => $user->getMorphClass(), 'authenticatable_id' => $user->id],
+            ['password_hash' => $user->password],
         );
     }
 }

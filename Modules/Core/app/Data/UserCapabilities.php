@@ -22,5 +22,10 @@ final class UserCapabilities extends Data
         public readonly bool $hasEcommerceAccess,
         public readonly bool $hasErpAccess,
         public readonly int $maxProjectOffers,
+        // Trivially derived (active + verified), not a stored per-user flag — there is no real
+        // Projects-module concept to key a stored flag off yet. See Modules\Core\Enums\AccountType.
+        public readonly bool $isProjectOwner,
+        /** @var array<int, string> */
+        public readonly array $accountTypes,
     ) {}
 }

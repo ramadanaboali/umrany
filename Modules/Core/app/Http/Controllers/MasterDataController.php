@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Http\Controllers;
 
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Modules\Core\Http\Resources\CityResource;
@@ -19,14 +20,11 @@ use Modules\Core\Models\Currency;
  * this data going stale. Writes to these tables are an Admin-portal concern (docs/modules/core.md
  * § Admin), not exposed here.
  */
+#[Group('Core / Master data', weight: 5)]
 final class MasterDataController extends Controller
 {
     /**
      * List countries
-     *
-     * @group Core / Master data
-     *
-     * @response 200 scenario="success" {"data": [{"id": 1, "code": "SA", "name_en": "Saudi Arabia"}]}
      */
     public function countries(): JsonResponse
     {
@@ -37,12 +35,6 @@ final class MasterDataController extends Controller
 
     /**
      * List cities for a country
-     *
-     * @group Core / Master data
-     *
-     * @urlParam country integer required Example: 1
-     *
-     * @response 200 scenario="success" {"data": [{"id": 4, "country_id": 1, "name_en": "Riyadh"}]}
      */
     public function cities(Country $country): JsonResponse
     {
@@ -53,10 +45,6 @@ final class MasterDataController extends Controller
 
     /**
      * List currencies
-     *
-     * @group Core / Master data
-     *
-     * @response 200 scenario="success" {"data": [{"id": 1, "code": "SAR", "symbol": "SAR"}]}
      */
     public function currencies(): JsonResponse
     {

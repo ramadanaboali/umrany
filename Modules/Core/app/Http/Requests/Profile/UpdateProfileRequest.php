@@ -35,8 +35,13 @@ final class UpdateProfileRequest extends FormRequest
             'full_name' => ['sometimes', 'string', 'max:255'],
             // FR-PROFILE-002: email/mobile changes must stay unique platform-wide and re-trigger
             // verification — handled in Modules\Core\Actions\Profile\UpdateProfile, not here.
-            'email' => ['sometimes', 'nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user()->id)],
-            'mobile' => ['sometimes', 'nullable', 'string', 'max:20', new SaudiOrEgyptianPhoneNumber, Rule::unique('users', 'mobile')->ignore($this->user()->id)],
+            'email' => ['sometimes', 'nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user()->id)->whereNull('deleted_at')],
+            /**
+             * Saudi or Egyptian mobile number, local or international format.
+             *
+             * @example +966501234567
+             */
+            'mobile' => ['sometimes', 'nullable', 'string', 'max:20', new SaudiOrEgyptianPhoneNumber, Rule::unique('users', 'mobile')->ignore($this->user()->id)->whereNull('deleted_at')],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'country_id' => ['sometimes', 'nullable', 'exists:countries,id'],
             'city_id' => ['sometimes', 'nullable', 'integer', function (string $attribute, mixed $value, Closure $fail): void {

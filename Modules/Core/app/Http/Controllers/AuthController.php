@@ -5,25 +5,35 @@ declare(strict_types=1);
 namespace Modules\Core\Http\Controllers;
 
 use App\Models\User;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Str;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Http\Requests\Auth\ChangePasswordRequest;
+use Modules\Core\Http\Requests\Auth\DeleteAccountRequest;
 use Modules\Core\Http\Requests\Auth\ForgotPasswordRequest;
 use Modules\Core\Http\Requests\Auth\LoginRequest;
+use Modules\Core\Http\Requests\Auth\MfaChallengeRequest;
 use Modules\Core\Http\Requests\Auth\RegisterRequest;
 use Modules\Core\Http\Requests\Auth\ResendVerificationCodeRequest;
 use Modules\Core\Http\Requests\Auth\ResetPasswordRequest;
 use Modules\Core\Http\Requests\Auth\VerifyAccountRequest;
+use Modules\Core\Http\Resources\AuthPayloadResource;
+use Modules\Core\Http\Resources\MfaSetupResource;
 use Modules\Core\Http\Resources\UserResource;
+use Modules\Core\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Core\Services\AuthService;
+use Modules\Core\Services\MfaService;
 
+#[Group('Core / Auth', weight: 1)]
 final class AuthController extends Controller
 {
     public function __construct(
         private readonly AuthService $auth,
+        private readonly UserRepositoryInterface $users,
+        private readonly MfaService $mfa,
     ) {}
 
     /**
@@ -33,59 +43,65 @@ final class AuthController extends Controller
      * Issues a verification code to whichever identifier was provided and returns an API token
      * immediately — the account can authenticate right away, but protected endpoints stay
      * gated behind `account.verified` until the code is confirmed via POST .../auth/verify.
-     *
-     * @group Core / Auth
-     *
-     * @bodyParam name string required Full name. Example: Ahmed Al-Otaibi
-     * @bodyParam email string Email address. Required if mobile is omitted. Example: ahmed@example.com
-     * @bodyParam mobile string Mobile number. Required if email is omitted. Example: +966501234567
-     * @bodyParam password string required Min 8 chars, mixed case, numbers. Example: Secr3tPass
-     * @bodyParam password_confirmation string required Example: Secr3tPass
-     * @bodyParam terms_accepted boolean required Must be true. Example: true
-     *
-     * @response 201 scenario="success" {"data": {"user": {"id": 1, "name": "Ahmed Al-Otaibi", "email": "ahmed@example.com", "mobile": null, "email_verified": false, "mobile_verified": false, "status": "active"}, "token": "1|abcdef..."}}
      */
     public function register(RegisterRequest $request): JsonResponse
     {
-        [$user, $token] = $this->auth->register($request->validated());
+        $payload = $this->auth->register($request->validated());
 
-        return response()->json([
-            'data' => [
-                'user' => new UserResource($user),
-                'token' => $token->plainTextToken,
-            ],
-        ], 201);
+        $data = (new AuthPayloadResource($payload))->resolve($request);
+
+        if ($request->boolean('mfa_enroll')) {
+            $data['mfa'] = (new MfaSetupResource($this->mfa->beginEnrollment($payload->user)))->toArray($request);
+        }
+
+        return response()->json(['data' => $data], 201);
     }
 
     /**
      * Login
      *
      * Authenticate with either the registered mobile number or email address.
-     *
-     * @group Core / Auth
-     *
-     * @bodyParam login string required Email or mobile number. Example: ahmed@example.com
-     * @bodyParam password string required Example: Secr3tPass
-     * @bodyParam device_name string Optional label for this session/device. Example: iPhone 15
-     *
-     * @response 200 scenario="success" {"data": {"user": {"id": 1}, "token": "1|abcdef..."}}
-     * @response 422 scenario="invalid credentials" {"message": "The given data was invalid.", "errors": {"login": ["These credentials do not match our records."]}}
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        [$user, $token] = $this->auth->login(
+        $result = $this->auth->login(
             $request->string('login')->value(),
             $request->string('password')->value(),
             $request->string('device_name')->value() ?: null,
             $request->ip(),
+            $request->userAgent(),
         );
 
-        return response()->json([
-            'data' => [
-                'user' => new UserResource($user),
-                'token' => $token->plainTextToken,
-            ],
-        ]);
+        if ($result['mfa_required']) {
+            return response()->json(['data' => [
+                'mfa_required' => true,
+                'challenge_token' => $result['challenge_token'],
+                'expires_in' => $result['expires_in'],
+            ]]);
+        }
+
+        return response()->json(['data' => (new AuthPayloadResource($result['payload']))->resolve($request)]);
+    }
+
+    /**
+     * Complete MFA login challenge
+     *
+     * Exchanges a challenge_token from a "mfa_required" login response, plus a TOTP or recovery
+     * code, for the same session shape a direct login would return.
+     */
+    public function mfaChallenge(MfaChallengeRequest $request): JsonResponse
+    {
+        $payload = $this->auth->consumeMfaChallenge(
+            $request->string('challenge_token')->value(),
+            $request->string('code')->value(),
+            $request->userAgent(),
+        );
+
+        if ($payload === null) {
+            return response()->json(['message' => 'This challenge is invalid or has expired.'], 422);
+        }
+
+        return response()->json(['data' => (new AuthPayloadResource($payload))->resolve($request)]);
     }
 
     /**
@@ -93,12 +109,6 @@ final class AuthController extends Controller
      *
      * Revokes the token used to authenticate the current request (this device/session only —
      * see .../auth/sessions to revoke others).
-     *
-     * @group Core / Auth
-     *
-     * @authenticated
-     *
-     * @response 204
      */
     public function logout(Request $request): JsonResponse
     {
@@ -108,18 +118,21 @@ final class AuthController extends Controller
     }
 
     /**
+     * Logout everywhere
+     *
+     * Revokes every session token, including the one used for this request.
+     */
+    public function logoutAll(Request $request): JsonResponse
+    {
+        $request->user()?->tokens()->delete();
+
+        return response()->json(null, 204);
+    }
+
+    /**
      * Resend verification code
      *
      * Rate-limited to one request per minute per account — see docs/api/conventions.md.
-     *
-     * @group Core / Auth
-     *
-     * @authenticated
-     *
-     * @bodyParam type string required "email" or "mobile" — must match an identifier already on the account. Example: email
-     *
-     * @response 200 scenario="success" {"message": "Verification code sent."}
-     * @response 422 scenario="already verified or channel not on account" {"message": "This account has no email address on file."}
      */
     public function resendCode(ResendVerificationCodeRequest $request): JsonResponse
     {
@@ -149,16 +162,6 @@ final class AuthController extends Controller
 
     /**
      * Verify account
-     *
-     * @group Core / Auth
-     *
-     * @authenticated
-     *
-     * @bodyParam type string required "email" or "mobile". Example: email
-     * @bodyParam code string required The 6-digit code just received. Example: 483920
-     *
-     * @response 200 scenario="success" {"data": {"user": {"id": 1, "email_verified": true}}}
-     * @response 422 scenario="invalid or expired" {"message": "This code is invalid or has expired."}
      */
     public function verify(VerifyAccountRequest $request): JsonResponse
     {
@@ -179,12 +182,6 @@ final class AuthController extends Controller
      *
      * Always responds with a generic success message whether or not the identifier matches an
      * account, so this endpoint can never be used to enumerate registered emails/mobiles.
-     *
-     * @group Core / Auth
-     *
-     * @bodyParam login string required Email or mobile number on the account. Example: ahmed@example.com
-     *
-     * @response 200 scenario="always" {"message": "If that account exists, a reset code has been sent."}
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
@@ -200,16 +197,6 @@ final class AuthController extends Controller
 
     /**
      * Reset password
-     *
-     * @group Core / Auth
-     *
-     * @bodyParam login string required Same identifier used to request the code. Example: ahmed@example.com
-     * @bodyParam code string required Example: 483920
-     * @bodyParam password string required Example: NewSecr3t1
-     * @bodyParam password_confirmation string required Example: NewSecr3t1
-     *
-     * @response 200 scenario="success" {"message": "Password has been reset. Please sign in again."}
-     * @response 422 scenario="invalid or expired" {"message": "This code is invalid or has expired."}
      */
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
@@ -242,17 +229,6 @@ final class AuthController extends Controller
      * and wants to set a new one, rather than the unauthenticated OTP-based recovery flow above.
      * Revokes every *other* session's token (the one used for this request stays valid). Sends
      * the same email confirmation as a completed reset.
-     *
-     * @group Core / Auth
-     *
-     * @authenticated
-     *
-     * @bodyParam current_password string required Example: OldSecr3t1
-     * @bodyParam password string required Example: NewSecr3t1
-     * @bodyParam password_confirmation string required Example: NewSecr3t1
-     *
-     * @response 200 scenario="success" {"message": "Password changed."}
-     * @response 422 scenario="wrong current password" {"message": "The given data was invalid.", "errors": {"current_password": ["The password is incorrect."]}}
      */
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
@@ -261,12 +237,23 @@ final class AuthController extends Controller
         return response()->json(['message' => 'Password changed.']);
     }
 
+    /**
+     * Delete account
+     *
+     * Soft-deletes the account (password-confirmed) and revokes every session token. The
+     * account's email/mobile become available for a new registration — see docs/decisions/
+     * 0014-user-soft-deletes-and-partial-unique-indexes.md.
+     */
+    public function destroyAccount(DeleteAccountRequest $request): JsonResponse
+    {
+        $this->auth->deleteAccount($request->user());
+
+        return response()->json(null, 204);
+    }
+
     private function findUserByLogin(string $login): ?User
     {
-        return User::query()
-            ->where('email', $login)
-            ->orWhere('mobile', $login)
-            ->first();
+        return $this->users->findByLoginIdentifier($login);
     }
 
     private function channelFor(User $user, string $login): VerificationCodeType

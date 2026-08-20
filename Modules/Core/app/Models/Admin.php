@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Modules\Core\Enums\AdminStatus;
+use Modules\Core\Enums\Language;
+use Modules\Core\Enums\ThemeMode;
+use Modules\Core\Notifications\AdminResetPasswordNotification;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -38,6 +41,8 @@ class Admin extends Authenticatable
         return [
             'is_super_admin' => 'boolean',
             'status' => AdminStatus::class,
+            'preferred_language' => Language::class,
+            'theme_mode' => ThemeMode::class,
             'last_login_at' => 'datetime',
             'password' => 'hashed',
         ];
@@ -46,6 +51,17 @@ class Admin extends Authenticatable
     public function canAuthenticate(): bool
     {
         return $this->status->canAuthenticate();
+    }
+
+    /**
+     * Overrides the base `CanResetPassword::sendPasswordResetNotification()` (inherited via
+     * `Authenticatable`) to send `AdminResetPasswordNotification` instead of the stock
+     * `ResetPassword` notification — see that class's docblock for why the stock one is unusable
+     * here (it hardcodes a route name this app doesn't register under).
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new AdminResetPasswordNotification($token));
     }
 
     /**

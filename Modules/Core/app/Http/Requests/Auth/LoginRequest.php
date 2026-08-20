@@ -19,8 +19,23 @@ final class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'login' => ['required', 'string'], // email or mobile, resolved server-side
+            /**
+             * Email or mobile number, resolved server-side.
+             *
+             * @example ahmed@example.com
+             */
+            'login' => ['required', 'string'],
+
+            /**
+             * @example Secr3tPass
+             */
             'password' => ['required', 'string'],
+
+            /**
+             * Optional label for this session/device.
+             *
+             * @example iPhone 15
+             */
             'device_name' => ['nullable', 'string', 'max:255'],
         ];
     }

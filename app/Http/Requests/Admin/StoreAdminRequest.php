@@ -34,7 +34,7 @@ final class StoreAdminRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:admins,email'],
             'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, 'unique:admins,phone'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)->mixedCase()->numbers()],
+            'password' => ['required', 'confirmed', PasswordRule::defaults()],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'admin')],
             // is_super_admin is deliberately not accepted here — it can only be granted via the

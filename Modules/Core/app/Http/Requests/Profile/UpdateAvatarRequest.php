@@ -8,9 +8,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateAvatarRequest extends FormRequest
 {
-    /** FR-PROFILE-003: "maximum upload size is configurable" — kept as one named constant. */
-    private const MAX_KILOBYTES = 2048;
-
     public function authorize(): bool
     {
         return true;
@@ -21,8 +18,9 @@ final class UpdateAvatarRequest extends FormRequest
      */
     public function rules(): array
     {
+        // FR-PROFILE-003: "maximum upload size is configurable" — config('core.avatar.max_kilobytes').
         return [
-            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.self::MAX_KILOBYTES],
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.config('core.avatar.max_kilobytes')],
         ];
     }
 }

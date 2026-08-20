@@ -24,7 +24,7 @@ final class SaudiOrEgyptianPhoneNumber implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value)) {
-            $fail('The :attribute must be a valid Saudi or Egyptian mobile number.');
+            $fail(__('core::validation.invalid_phone_number'));
 
             return;
         }
@@ -32,7 +32,7 @@ final class SaudiOrEgyptianPhoneNumber implements ValidationRule
         $normalized = preg_replace('/[\s\-]/', '', $value);
 
         if (! preg_match(self::SAUDI_PATTERN, $normalized) && ! preg_match(self::EGYPTIAN_PATTERN, $normalized)) {
-            $fail('The :attribute must be a valid Saudi or Egyptian mobile number.');
+            $fail(__('core::validation.invalid_phone_number'));
         }
     }
 }

@@ -18,6 +18,7 @@ class Country extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_default' => 'boolean',
         ];
     }
 
@@ -30,13 +31,13 @@ class Country extends Model
     }
 
     /**
-     * The platform-wide default country (Saudi Arabia) — looked up by code, not a hardcoded id,
-     * since auto-increment ids aren't guaranteed stable across environments. See
-     * Modules/Core/config/config.php `defaults.country_code` and
-     * Modules/Core/database/seeders/MasterDataSeeder, which guarantees this code always exists.
+     * The platform-wide default country — a real `is_default` flag (only one row may ever be
+     * true, enforced by a partial unique index), not a config-code lookup. Seeded from
+     * config('core.defaults.country_code') so behavior is unchanged from before this became a DB
+     * flag — see docs/decisions/0020-database-backed-platform-defaults.md.
      */
     public static function default(): ?self
     {
-        return static::query()->where('code', config('core.defaults.country_code'))->first();
+        return static::query()->where('is_default', true)->first();
     }
 }

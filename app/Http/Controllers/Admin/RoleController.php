@@ -39,7 +39,7 @@ final class RoleController extends Controller
     {
         $this->roles->create($request->string('name')->value(), $request->input('permissions', []));
 
-        return redirect()->route('admin.roles.index')->with('status', 'Role created.');
+        return redirect()->route('admin.roles.index')->with('status', __('admin.flash.role_created'));
     }
 
     public function edit(Role $role): View
@@ -58,7 +58,7 @@ final class RoleController extends Controller
 
         $this->roles->update($role, $request->string('name')->value(), $request->input('permissions', []));
 
-        return redirect()->route('admin.roles.index')->with('status', 'Role updated.');
+        return redirect()->route('admin.roles.index')->with('status', __('admin.flash.role_updated'));
     }
 
     public function destroy(Role $role): RedirectResponse
@@ -67,7 +67,7 @@ final class RoleController extends Controller
 
         $this->roles->delete($role);
 
-        return redirect()->route('admin.roles.index')->with('status', 'Role deleted.');
+        return redirect()->route('admin.roles.index')->with('status', __('admin.flash.role_deleted'));
     }
 
     /**

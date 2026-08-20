@@ -30,6 +30,6 @@ final class ProfileController extends Controller
             'password' => $request->filled('password') ? $request->string('password')->value() : null,
         ]);
 
-        return back()->with('status', 'Profile updated.');
+        return back()->with('status', __('admin.flash.profile_updated'));
     }
 }

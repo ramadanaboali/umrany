@@ -18,6 +18,15 @@ Everything runs from the same application image (`umrany_app:local`, built from 
 
 Container names are pinned via `container_name:` in `docker-compose.yml` (all prefixed `umrany_`) rather than left to Compose's auto-generated `<project>-<service>-<index>` naming — this is purely for `docker ps`/`docker logs` readability; `docker compose` commands (`up`, `exec`, `logs`, etc.) still address services by their short name (`app`, `postgres`, ...) regardless. Volumes are similarly pinned to `umrany_postgres_data` and `umrany_redis_data`.
 
+## Scheduled tasks
+
+`routes/console.php` registers whatever runs on the Laravel scheduler, polled every 60s by the
+`scheduler` service above. Currently just one entry:
+
+| Command | Schedule | Purpose |
+|---|---|---|
+| `sanctum:prune-expired --hours=24` | Daily at 03:00 | Deletes expired `personal_access_tokens` rows. `config('sanctum.expiration')` (see `config/sanctum.php`) already makes the Sanctum guard reject an expired token on every request regardless — this only keeps the table from growing forever. Laravel's built-in command handles both `expires_at`-based and global-expiration-based pruning; no custom command was needed. |
+
 ## Startup: migrate + seed on every boot
 
 `docker/app/entrypoint.sh` is the image's `ENTRYPOINT`, wrapping whatever `command:` each of the

@@ -113,7 +113,10 @@ This is the same one-way-dependency shape as everything else in this doc: a busi
 boolean: may this request proceed. `Modules\Core\Contracts\UserCapabilityResolver` answers a
 different question — a full, UI-hint read model of which capabilities an account currently has
 (`Modules\Core\Data\UserCapabilities`: `isProvider`, `providerVerified`, `hasEcommerceAccess`,
-`hasErpAccess`, `maxProjectOffers`), exposed at `GET /api/v1/core/me/capabilities`.
+`hasErpAccess`, `maxProjectOffers`, `isProjectOwner`, `accountTypes`), exposed at
+`GET /api/v1/core/me/capabilities`. `accountTypes` echoes the registration-time "I am a:" intent
+(`docs/decisions/0016-account-type-intent-capture.md`) — like every other field here, it's
+descriptive, never itself an authorization source.
 
 This exists because of a specific, explicit product rule (`docs/business/personas.md`): "Project
 Owner", "Supplier", "ERP User", and "Customer" are never stored roles on `User` — they're computed
@@ -122,8 +125,13 @@ deliberately does not use Spatie's `HasRoles` trait for this reason; that trait 
 `Modules\Core\Models\Admin` (the `admin` guard), a completely separate, genuinely role-based
 identity. Don't add a `role` column to `users` and don't give `User` `HasRoles` — if you need a
 new derived capability, add a field to `UserCapabilities` and compute it in
-`Modules\Core\Services\CapabilityResolver`, the same way `isProvider`/`providerVerified` are
-computed there today.
+`Modules\Core\Services\CapabilityService`, the same way `isProvider`/`providerVerified` are
+computed there today. The cache key wrapping this DTO (`Services/CapabilityService::cacheKey()`)
+is versioned (`:v3:`) — bump it whenever the DTO's constructor shape changes, or the cached
+*representation* changes, so an already-cached entry in the old shape/format is never handed to
+code expecting the new one (a real `__PHP_Incomplete_Class`-class failure this project hit twice
+already — see `Services/CapabilityService`'s class docblock for the full history, including why
+the cached value is the DTO's array form, not the `Data` object itself).
 
 **The client-trust boundary**: `UserCapabilityResolver`'s output is advisory only. No endpoint may
 treat a client-supplied copy of this DTO as authoritative — every protected action independently

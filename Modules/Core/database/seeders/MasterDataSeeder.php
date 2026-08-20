@@ -21,7 +21,14 @@ final class MasterDataSeeder extends Seeder
     {
         $saudi = Country::query()->updateOrCreate(
             ['code' => 'SA'],
-            ['name_en' => 'Saudi Arabia', 'name_ar' => 'المملكة العربية السعودية', 'phone_code' => '+966', 'is_active' => true],
+            [
+                'name_en' => 'Saudi Arabia', 'name_ar' => 'المملكة العربية السعودية', 'phone_code' => '+966',
+                'is_active' => true,
+                // Config value is now only the SEED source, not the runtime lookup (Country::
+                // default() queries is_default) — see docs/decisions/0020-database-backed-
+                // platform-defaults.md.
+                'is_default' => config('core.defaults.country_code') === 'SA',
+            ],
         );
 
         $uae = Country::query()->updateOrCreate(
@@ -69,7 +76,11 @@ final class MasterDataSeeder extends Seeder
         foreach ($currencies as $currency) {
             Currency::query()->updateOrCreate(
                 ['code' => $currency['code']],
-                [...$currency, 'is_active' => true],
+                [
+                    ...$currency,
+                    'is_active' => true,
+                    'is_default' => config('core.defaults.currency_code') === $currency['code'],
+                ],
             );
         }
     }

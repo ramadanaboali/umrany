@@ -4,31 +4,23 @@ declare(strict_types=1);
 
 namespace Modules\Core\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
+use Modules\Core\Enums\NotificationEvent;
 
 /**
- * Security confirmation sent whenever a password changes (self-service change or a completed
- * reset) — deliberately email-only regardless of which channel the reset code itself used, since
- * email is the more durable, reviewable record for a security-sensitive event. Callers must check
- * $user->email !== null before dispatching — there is no channel to fall back to for a
- * mobile-only account, and that's a data-availability fact, not something this class should paper
- * over with a silent SMS substitution.
+ * Security confirmation sent whenever a password changes (self-service change — a completed
+ * reset uses PasswordResetCompletedNotification instead, per the source spec's distinct events).
+ * Channel selection (mail/in-app/neither) is entirely preference-driven — see
+ * Modules\Core\Notifications\BaseUserNotification — this is a mandatory event
+ * (NotificationEvent::isMandatory()), so it always reaches every channel the account has a
+ * destination for regardless of stored preference.
  */
-final class PasswordChangedNotification extends Notification implements ShouldQueue
+final class PasswordChangedNotification extends BaseUserNotification
 {
-    use Queueable;
-
     public int $tries = 3;
 
     public function __construct()
     {
-        // Set via onQueue(), not a redeclared $queue property: Queueable already declares an
-        // untyped $queue, and a typed redeclaration is an incompatible trait composition (fatal
-        // error at class-load time) — the exact bug already fixed once in
-        // VerificationCodeNotification; same fix here.
         $this->onQueue('core-default');
     }
 
@@ -40,12 +32,9 @@ final class PasswordChangedNotification extends Notification implements ShouldQu
         return [10, 30, 60];
     }
 
-    /**
-     * @return array<int, string>
-     */
-    public function via(mixed $notifiable): array
+    public function event(): NotificationEvent
     {
-        return ['mail'];
+        return NotificationEvent::PasswordChanged;
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -55,5 +44,13 @@ final class PasswordChangedNotification extends Notification implements ShouldQu
             ->greeting('Password changed')
             ->line('This is a confirmation that your account password was just changed.')
             ->line('If you did not make this change, contact support immediately.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(mixed $notifiable): array
+    {
+        return ['message' => 'Your password was changed.'];
     }
 }

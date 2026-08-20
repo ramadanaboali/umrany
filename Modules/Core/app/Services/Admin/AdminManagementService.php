@@ -8,15 +8,19 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Modules\Core\Enums\AdminStatus;
+use Modules\Core\Enums\Language;
+use Modules\Core\Enums\ThemeMode;
 use Modules\Core\Events\AdminPermissionsChanged;
 use Modules\Core\Models\Admin;
 use Modules\Core\Repositories\Contracts\AdminRepositoryInterface;
+use Modules\Core\Services\PasswordHistoryService;
 use Modules\Core\Support\PhoneNumber;
 
 final class AdminManagementService
 {
     public function __construct(
         private readonly AdminRepositoryInterface $admins,
+        private readonly PasswordHistoryService $passwordHistory,
     ) {}
 
     /**
@@ -51,7 +55,33 @@ final class AdminManagementService
             $attributes['password'] = $data['password'];
         }
 
-        return $this->admins->forceUpdate($admin, $attributes);
+        $admin = $this->admins->forceUpdate($admin, $attributes);
+
+        if (filled($data['password'] ?? null)) {
+            $this->passwordHistory->record($admin, $admin->password);
+        }
+
+        return $admin;
+    }
+
+    /**
+     * Self-service language switch — deliberately not folded into updateOwnProfile() above,
+     * which is the name/phone/password path; a locale switch shouldn't run that method's
+     * password-history side effect. See docs/decisions/0022-admin-dashboard-en-ar-localization.md.
+     */
+    public function updateLocale(Admin $admin, Language $language): Admin
+    {
+        return $this->admins->forceUpdate($admin, ['preferred_language' => $language]);
+    }
+
+    /**
+     * Self-service dark/light mode switch — fired by a background fetch() from
+     * resources/js/admin-theme.js on every toggle, not a full-page form submit, so the client-side
+     * instant toggle stays instant. See docs/decisions/0021-velzon-material-admin-theme.md.
+     */
+    public function updateThemeMode(Admin $admin, ThemeMode $mode): Admin
+    {
+        return $this->admins->forceUpdate($admin, ['theme_mode' => $mode]);
     }
 
     /**
@@ -73,6 +103,8 @@ final class AdminManagementService
             ]);
 
             $admin->syncRoles($data['roles'] ?? []);
+
+            $this->passwordHistory->record($admin, $admin->password);
 
             return $admin;
         });
@@ -98,12 +130,12 @@ final class AdminManagementService
             $targetStatus = AdminStatus::from($data['status']);
 
             if ($admin->is($actingAdmin) && $targetStatus !== AdminStatus::Active) {
-                throw ValidationException::withMessages(['status' => ['You cannot suspend your own account.']]);
+                throw ValidationException::withMessages(['status' => [__('core::admin.cannot_suspend_self')]]);
             }
 
             if ($admin->is_super_admin && $targetStatus !== AdminStatus::Active
                 && $this->admins->countOtherActiveSuperAdmins($admin->id) === 0) {
-                throw ValidationException::withMessages(['status' => ['This is the last active Super Admin — promote another admin to Super Admin first.']]);
+                throw ValidationException::withMessages(['status' => [__('core::admin.last_active_super_admin')]]);
             }
 
             $this->admins->forceUpdate($admin, [
@@ -136,11 +168,11 @@ final class AdminManagementService
     public function delete(Admin $admin, Admin $actingAdmin): void
     {
         if ($admin->is($actingAdmin)) {
-            throw ValidationException::withMessages(['admin' => ['You cannot delete your own account.']]);
+            throw ValidationException::withMessages(['admin' => [__('core::admin.cannot_delete_self')]]);
         }
 
         if ($admin->is_super_admin && $this->admins->countOtherActiveSuperAdmins($admin->id) === 0) {
-            throw ValidationException::withMessages(['admin' => ['This is the last active Super Admin — promote another admin to Super Admin first.']]);
+            throw ValidationException::withMessages(['admin' => [__('core::admin.last_active_super_admin')]]);
         }
 
         $this->admins->delete($admin);

@@ -26,6 +26,14 @@ return new class extends Migration
             $table->string('password');
             $table->string('phone')->nullable()->unique();
             $table->string('avatar_path')->nullable();
+            // Drives the admin dashboard's UI language and its LTR/RTL direction via
+            // Modules\Core\Enums\Language::direction() — mirrors user_profiles.preferred_language
+            // exactly (same enum, same column shape). See
+            // docs/decisions/0022-admin-dashboard-en-ar-localization.md.
+            $table->string('preferred_language', 2)->default('en');
+            // Dark/light mode — mirrors preferred_language's DB-plus-browser persistence pattern.
+            // See docs/decisions/0021-velzon-material-admin-theme.md.
+            $table->string('theme_mode', 5)->default('light');
             // Bypasses all permission checks (Gate::before) regardless of role assignment —
             // a boolean, not a role name, so renaming/removing a "Super Admin" role can never
             // accidentally revoke the bypass. See docs/modules/core.md § Admin.

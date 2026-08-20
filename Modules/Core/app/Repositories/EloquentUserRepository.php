@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Core\Repositories;
 
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Core\Repositories\Contracts\UserRepositoryInterface;
 
 final class EloquentUserRepository implements UserRepositoryInterface
@@ -12,6 +13,18 @@ final class EloquentUserRepository implements UserRepositoryInterface
     public function findById(int $id): ?User
     {
         return User::query()->find($id);
+    }
+
+    public function paginateForAdmin(int $perPage, ?string $search): LengthAwarePaginator
+    {
+        return User::query()
+            ->withCount('tokens')
+            ->when($search, fn ($query) => $query->where(fn ($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('mobile', 'like', "%{$search}%")))
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
     }
 
     public function findByLoginIdentifier(string $login): ?User
@@ -35,5 +48,10 @@ final class EloquentUserRepository implements UserRepositoryInterface
         $user->forceFill($attributes)->save();
 
         return $user;
+    }
+
+    public function softDelete(User $user): void
+    {
+        $user->delete();
     }
 }

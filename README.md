@@ -6,7 +6,7 @@ This repo is the backend API — Laravel 13 as a **modular monolith**, currently
 
 ## Stack
 
-PHP 8.4 · Laravel 13 · Octane (RoadRunner) · PostgreSQL 15 · Redis (phpredis) · Horizon · Reverb (WebSockets) · `nwidart/laravel-modules` · Scribe (OpenAPI docs) · everything runs in Docker. Full rationale per choice: [docs/architecture/tech-stack.md](docs/architecture/tech-stack.md).
+PHP 8.4 · Laravel 13 · Octane (RoadRunner) · PostgreSQL 15 · Redis (phpredis) · Horizon · Reverb (WebSockets) · `nwidart/laravel-modules` · Scramble (OpenAPI 3.1 docs) · everything runs in Docker. Full rationale per choice: [docs/architecture/tech-stack.md](docs/architecture/tech-stack.md).
 
 ## Modules
 
@@ -39,7 +39,7 @@ curl http://localhost/api/v1/core/health/ready   # {"status":"ok","checks":{"dat
 | What | URL |
 |---|---|
 | API (all `/api/v1/*` traffic, through nginx) | http://localhost |
-| API docs — interactive / OpenAPI / Postman | http://localhost/docs · http://localhost/docs.openapi · http://localhost/docs.postman |
+| API docs — interactive / OpenAPI 3.1 spec | http://localhost/docs · http://localhost/docs/openapi.json |
 | Horizon (queue dashboard) | http://localhost/horizon |
 | Log viewer | http://localhost/log-viewer |
 | Liveness / readiness health checks | http://localhost/up · http://localhost/api/v1/core/health/ready |

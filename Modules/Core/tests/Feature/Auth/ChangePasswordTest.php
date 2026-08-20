@@ -53,7 +53,7 @@ class ChangePasswordTest extends TestCase
         $this->assertTrue(Hash::check('OldPassword1', $user->refresh()->password));
     }
 
-    public function test_password_changed_notification_is_not_sent_for_a_mobile_only_account(): void
+    public function test_password_changed_notification_has_no_mail_channel_for_a_mobile_only_account(): void
     {
         Notification::fake();
 
@@ -68,6 +68,12 @@ class ChangePasswordTest extends TestCase
             ])
             ->assertOk();
 
-        Notification::assertNothingSentTo($user);
+        // In-app notifications never depend on having an email on file — only the mail channel
+        // is unreachable for a mobile-only account.
+        Notification::assertSentTo(
+            $user,
+            PasswordChangedNotification::class,
+            fn ($notification, array $channels) => in_array('database', $channels, true) && ! in_array('mail', $channels, true),
+        );
     }
 }

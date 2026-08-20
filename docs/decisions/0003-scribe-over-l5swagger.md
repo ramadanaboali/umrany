@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0023-scramble-over-scribe.md](0023-scramble-over-scribe.md)
 
 ## Context
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Http\Controllers;
 
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -15,8 +16,20 @@ use Throwable;
  * a request: the database and Redis (cache + queue). Distinct from Laravel's
  * built-in liveness probe at /up, which only proves the app booted.
  */
+#[Group('Core / Health', weight: 6)]
 final class HealthController
 {
+    /**
+     * Liveness check
+     */
+    public function live(): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'module' => 'core']);
+    }
+
+    /**
+     * Readiness check
+     */
     public function ready(): JsonResponse
     {
         $checks = [

@@ -7,6 +7,12 @@ namespace Modules\Core\Services;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Encoders\JpegEncoder;
+use Intervention\Image\Encoders\PngEncoder;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Interfaces\EncoderInterface;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Models\UserProfile;
@@ -16,14 +22,13 @@ use Modules\Core\Support\PhoneNumber;
 
 final class ProfileService
 {
-    private const AVATAR_DISK = 'public';
-
     private const PROFILE_FIELDS = ['full_name', 'address', 'country_id', 'city_id'];
 
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly UserProfileRepositoryInterface $profiles,
         private readonly VerificationCodeService $verificationCodes,
+        private readonly ImageManager $images,
     ) {}
 
     /**
@@ -60,12 +65,26 @@ final class ProfileService
         return $user->refresh();
     }
 
+    /**
+     * Every upload is re-encoded to config('core.avatar.*')'s format/dimensions/quality
+     * regardless of what was submitted (FR-PROFILE-003 "images shall be automatically
+     * optimized") — a useful side effect of the re-encode is that EXIF data (including GPS
+     * coordinates a phone photo may carry) is stripped along the way.
+     */
     public function updateAvatar(User $user, UploadedFile $file): string
     {
         $profile = $this->profiles->findByUserId($user->id);
         $this->deleteExistingAvatar($profile?->avatar_path);
 
-        $path = $file->store('avatars/users', self::AVATAR_DISK);
+        $format = (string) config('core.avatar.format');
+
+        $encoded = $this->images
+            ->decodePath($file->getRealPath())
+            ->cover((int) config('core.avatar.width'), (int) config('core.avatar.height'))
+            ->encode($this->encoderFor($format));
+
+        $path = config('core.avatar.path').'/'.Str::uuid().'.'.$format;
+        Storage::disk(config('core.avatar.disk'))->put($path, (string) $encoded);
 
         if ($profile) {
             $this->profiles->update($profile, ['avatar_path' => $path]);
@@ -100,10 +119,28 @@ final class ProfileService
         }
     }
 
+    /**
+     * `core.avatar.format` genuinely drives the stored encoding/extension — not just a config
+     * value nobody reads. `webp` is the default (best size/quality tradeoff of the three); `jpeg`/
+     * `png` exist for a deploy that needs broader legacy-client image support.
+     */
+    private function encoderFor(string $format): EncoderInterface
+    {
+        $quality = (int) config('core.avatar.quality');
+
+        return match ($format) {
+            'jpeg', 'jpg' => new JpegEncoder(quality: $quality),
+            'png' => new PngEncoder,
+            default => new WebpEncoder(quality: $quality),
+        };
+    }
+
     private function deleteExistingAvatar(?string $path): void
     {
-        if ($path !== null && Storage::disk(self::AVATAR_DISK)->exists($path)) {
-            Storage::disk(self::AVATAR_DISK)->delete($path);
+        $disk = config('core.avatar.disk');
+
+        if ($path !== null && Storage::disk($disk)->exists($path)) {
+            Storage::disk($disk)->delete($path);
         }
     }
 }

@@ -21,6 +21,13 @@ Three sub-decisions were made together, since they constrain each other:
 - **Admin dashboard lives at the application root**, not inside `Modules/*`: `app/Http/Controllers/Admin/*`, `resources/views/admin/*`, `routes/admin.php` (registered via `bootstrap/app.php`'s `withRouting(then: ...)`). This is the one deliberate exception to "every module is API-only" — recorded here instead of silently contradicting `system-architecture.md`. Root `app/` is allowed to depend on `Modules/Core` the same way every business module already does (Core is the one shared dependency in the whole application); it must never reach into another business module's Eloquent models directly, same rule as everywhere else.
 - **Admin controllers call Core's `Services\...`/`Contracts\...`/`Models\...` classes in-process**, not through the HTTP API. No `/api/v1/admin/*` surface exists. This trades strict "every client is equal" purity (the API-first principle in `system-architecture.md`) for avoiding a redundant internal HTTP round-trip on every server-rendered page. If a future admin screen needs data from a business module (Projects, ECommerce, ERP, AI), it goes through that module's `Contracts\...` interface — the same one-way dependency rule as `module-boundaries.md` already describes, just consumed from `app/` instead of another `Modules/*` package.
 - **Hand-rolled Blade, no Livewire.** Forms are plain `<form method="POST">` with full-page navigation; any client-side interactivity is left to whatever the eventual dashboard theme provides (Alpine/vanilla JS), not a server-driven component framework. The current views use a minimal placeholder layout/stylesheet standing in for the real theme — swapping it in later only touches `resources/views/admin/layouts/*.blade.php`.
+
+  > **Update (ADR 0021):** this estimate proved wrong. The real theme swap also required updating
+  > every inner admin view's markup (placeholder classes like `.checkbox-grid`/`.badge-active` had
+  > no equivalent in the real theme's CSS), not just the two layout files. See
+  > `docs/decisions/0021-velzon-material-admin-theme.md` and
+  > `docs/architecture/admin-portal.md` § Theme and assets for what a theme swap and a new screen
+  > each actually touch now.
 - **Admin/Role/Permission remain Core-owned data** (`Modules\Core\Models\Admin`, `spatie/laravel-permission` scoped to the `admin` guard) regardless of where the UI lives — this was already the documented entity ownership in `docs/modules/core.md` and didn't need to change.
 
 ## Consequences

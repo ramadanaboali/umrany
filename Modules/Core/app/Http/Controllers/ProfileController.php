@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Http\Controllers;
 
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -14,6 +15,7 @@ use Modules\Core\Http\Requests\Profile\UpdateProfileRequest;
 use Modules\Core\Http\Resources\ProfileResource;
 use Modules\Core\Services\ProfileService;
 
+#[Group('Core / Profile', weight: 2)]
 final class ProfileController extends Controller
 {
     public function __construct(
@@ -22,12 +24,6 @@ final class ProfileController extends Controller
 
     /**
      * View profile
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @response 200 scenario="success" {"data": {"id": 1, "full_name": "Ahmed Al-Otaibi", "email": "ahmed@example.com"}}
      */
     public function show(Request $request): JsonResponse
     {
@@ -39,19 +35,6 @@ final class ProfileController extends Controller
      *
      * Changing email or mobile clears that channel's verified status and issues a new
      * verification code — see docs/modules/core.md § Profile.
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @bodyParam full_name string Example: Ahmed Al-Otaibi
-     * @bodyParam email string Example: ahmed@example.com
-     * @bodyParam mobile string Example: +966501234567
-     * @bodyParam address string Example: King Fahd Road
-     * @bodyParam country_id integer Example: 1
-     * @bodyParam city_id integer Example: 4
-     *
-     * @response 200 scenario="success" {"data": {"id": 1, "full_name": "Ahmed Al-Otaibi"}}
      */
     public function update(UpdateProfileRequest $request): JsonResponse
     {
@@ -62,14 +45,6 @@ final class ProfileController extends Controller
 
     /**
      * Upload/replace avatar
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @bodyParam avatar file required Image, max 2MB. Example: (binary)
-     *
-     * @response 200 scenario="success" {"data": {"avatar_url": "https://.../avatars/users/abc.jpg"}}
      */
     public function updateAvatar(UpdateAvatarRequest $request): JsonResponse
     {
@@ -80,12 +55,6 @@ final class ProfileController extends Controller
 
     /**
      * Remove avatar
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @response 204
      */
     public function destroyAvatar(Request $request): JsonResponse
     {
@@ -98,14 +67,6 @@ final class ProfileController extends Controller
      * Set language preference
      *
      * FR-PROFILE-005 — the client is expected to switch RTL/LTR based on the returned value.
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @bodyParam language string required "ar" or "en". Example: ar
-     *
-     * @response 200 scenario="success" {"data": {"preferred_language": "ar"}}
      */
     public function updateLanguage(UpdateLanguageRequest $request): JsonResponse
     {
@@ -116,14 +77,6 @@ final class ProfileController extends Controller
 
     /**
      * Set currency preference
-     *
-     * @group Core / Profile
-     *
-     * @authenticated
-     *
-     * @bodyParam currency_id integer required Example: 1
-     *
-     * @response 200 scenario="success" {"data": {"preferred_currency": {"id": 1, "code": "SAR"}}}
      */
     public function updateCurrency(UpdateCurrencyRequest $request): JsonResponse
     {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\SetAdminLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,8 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function () {
             // Session-based Blade admin dashboard — everything else in this app is API-only.
-            // See routes/admin.php and docs/architecture/admin-portal.md.
-            Route::middleware('web')->group(base_path('routes/admin.php'));
+            // See routes/admin.php and docs/architecture/admin-portal.md. SetAdminLocale runs
+            // after 'web' (session already started) and before the route's own auth:admin, so it
+            // applies to the login/forgot-password screens too — see
+            // docs/decisions/0022-admin-dashboard-en-ar-localization.md.
+            Route::middleware(['web', SetAdminLocale::class])->group(base_path('routes/admin.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

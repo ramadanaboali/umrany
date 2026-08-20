@@ -22,6 +22,8 @@ final class UserCapabilitiesResource extends JsonResource
             'has_ecommerce_access' => $this->hasEcommerceAccess,
             'has_erp_access' => $this->hasErpAccess,
             'max_project_offers' => $this->maxProjectOffers,
+            'is_project_owner' => $this->isProjectOwner,
+            'account_types' => $this->accountTypes,
         ];
     }
 }

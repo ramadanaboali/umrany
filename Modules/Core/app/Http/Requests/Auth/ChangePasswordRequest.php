@@ -6,6 +6,7 @@ namespace Modules\Core\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
+use Modules\Core\Rules\NotAPreviousPassword;
 
 final class ChangePasswordRequest extends FormRequest
 {
@@ -25,7 +26,7 @@ final class ChangePasswordRequest extends FormRequest
             // `sanctum` guard. Confirming it in the FormRequest (rather than re-checking in the
             // Service) keeps the 422 shape the standard validation-error one, not a bespoke error.
             'current_password' => ['required', 'current_password:sanctum'],
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+            'password' => ['required', 'confirmed', Password::defaults(), new NotAPreviousPassword($this->user())],
         ];
     }
 }

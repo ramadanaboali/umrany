@@ -95,4 +95,38 @@ class CapabilityTest extends TestCase
             ->getJson('/api/v1/core/me/capabilities')
             ->assertJsonPath('data.is_provider', true);
     }
+
+    public function test_capabilities_reports_is_project_owner_true_and_account_types_for_a_verified_user(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now(), 'account_types' => ['project_owner']]);
+        $user->profile()->create(['full_name' => $user->name]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/core/me/capabilities')
+            ->assertOk()
+            ->assertJson(['data' => [
+                'is_project_owner' => true,
+                'account_types' => ['project_owner'],
+            ]]);
+    }
+
+    /**
+     * `GET /me/capabilities` sits behind the `account.verified` middleware (routes/api.php), so an
+     * account that hasn't verified either channel yet — even with an otherwise-valid token and an
+     * "active" status — can never reach far enough to see an `is_project_owner: false` body from
+     * this endpoint; it is rejected before the controller/service ever runs. This is the "verified
+     * vs. unverified" contrast for this endpoint: unverified never gets a capabilities payload at
+     * all, verified does (see the test above).
+     */
+    public function test_capabilities_endpoint_rejects_an_unverified_user_before_reporting_capabilities(): void
+    {
+        $user = User::factory()->unverified()->create(['account_types' => ['project_owner']]);
+        $user->profile()->create(['full_name' => $user->name]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/core/me/capabilities')
+            ->assertStatus(403);
+    }
 }

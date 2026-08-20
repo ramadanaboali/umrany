@@ -1,6 +1,6 @@
 ---
 name: laravel-endpoint
-description: Scaffold a new Umrany API endpoint (Controller + FormRequest + API Resource + route + Scribe doc-block + Pest test) following project conventions. Use when adding any new API route to a module.
+description: Scaffold a new Umrany API endpoint (Controller + FormRequest + API Resource + route + Scramble annotations + Pest test) following project conventions. Use when adding any new API route to a module.
 ---
 
 # Scaffold a new API endpoint
@@ -34,28 +34,48 @@ docker compose exec app php artisan module:make-test <Name>Test <Module> --pest
 
 Add it inside `Modules/<Module>/routes/api.php`, inside the existing `Route::prefix('v1/<module-alias>')->name('<module-alias>.')->group(...)` block. Follow the existing REST naming inside that group.
 
-## 5. Document it for Scribe
+## 5. Document it for Scramble
 
-Add doc-block annotations directly above the controller method:
+`dedoc/scramble` infers most of the shape automatically from the FormRequest and Resource — don't
+re-describe what it already infers. Two things to actually add:
 
-```php
-/**
- * Short summary of what this endpoint does.
- *
- * @group <Module> / <Entity>
- * @authenticated
- * @bodyParam field_name string required Description. Example: value
- * @response 200 scenario="success" {"data": {...}}
- */
-```
+1. A class-level group attribute, once per controller (skip if the controller already has one):
 
-Scribe auto-matches every route under `api/*` (see `config/scribe.php`) — no per-module config needed, just keep doc-blocks accurate. Regenerate locally with `docker compose exec app php artisan scribe:generate` and spot-check `/docs`.
+   ```php
+   #[\Dedoc\Scramble\Attributes\Group('<Module> / <Entity>', weight: N)]
+   final class <Name>Controller extends Controller
+   ```
+
+2. In the FormRequest's `rules()`, a `/** ... */` doc-comment directly above any field whose name
+   alone doesn't make its meaning/format obvious (skip fields like `name`/`status` that don't need
+   one):
+
+   ```php
+   /**
+    * Short client-facing description.
+    *
+    * @example value
+    */
+   'field_name' => ['required', 'string'],
+   ```
+
+Only reach for a hand-written `#[\Dedoc\Scramble\Attributes\Response(status, description:,
+examples:)]` on the controller method when a response's meaning can't be inferred — typically a
+message added via the FormRequest's `after()` closure rather than `rules()`, or one thrown by a
+Service method (prefer a `@throws` PHPDoc tag on that Service method first; Scramble reads through
+one level of method calls). No `@authenticated` tag needed — bearer-auth requirements are derived
+automatically from the route's `auth:sanctum` middleware.
+
+Scramble auto-matches every route under `api/*` (`config('scramble.api_path')`) — no per-module
+config needed. Nothing to regenerate — spot-check `/docs`, which is generated live on every
+request. If you edited a docblock/attribute while the stack was already running, reload Octane
+first (root `CLAUDE.md` Rule 4) or the change won't show up.
 
 ## 6. Update the module docs (not optional — root `CLAUDE.md` Rule 5)
 
 - If this endpoint introduces a new entity/field, add it to `Modules/<Module>/CLAUDE.md`'s entity list **and** `docs/modules/<module-alias>.md`.
 - If this endpoint establishes a new *pattern* (not just another CRUD endpoint using existing conventions — e.g. a new pagination style, a new error shape, a new auth flow), update `docs/api/conventions.md` too.
-- If it's genuinely just one more endpoint following patterns already documented, no doc change is needed beyond the Scribe doc-block from step 5 — don't pad docs with restating what's already covered.
+- If it's genuinely just one more endpoint following patterns already documented, no doc change is needed beyond the Scramble annotations from step 5 — don't pad docs with restating what's already covered.
 
 ## 7. Test it
 
@@ -71,3 +91,4 @@ docker compose exec app ./vendor/bin/pest --filter=<Name>Test
 - No direct cross-module model usage introduced (step 1 rule).
 - If this endpoint reads/writes anything cacheable, follow the `umrany:<module>:<entity>:<id>` key convention from root `CLAUDE.md`.
 - Docs from step 6 actually updated, not just considered — run `.claude/skills/docs-sync-check` if unsure.
+- `/docs` shows the endpoint with a sensible group, description, and request/response shape (spot-check after an Octane reload).

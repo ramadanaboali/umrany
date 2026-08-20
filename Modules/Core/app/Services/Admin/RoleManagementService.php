@@ -52,7 +52,7 @@ final class RoleManagementService
     {
         if ($this->roles->isAssignedToAnyAdmin($role)) {
             throw ValidationException::withMessages([
-                'role' => ['This role is still assigned to one or more admins — remove it from them first.'],
+                'role' => [__('core::admin.role_still_assigned')],
             ]);
         }
 

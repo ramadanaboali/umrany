@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace Modules\Core\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
+use Modules\Core\Enums\NotificationChannel;
+use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Notifications\Channels\LoggedSmsChannel;
+use Modules\Core\Services\NotificationPreferenceService;
 
-final class VerificationCodeNotification extends Notification implements ShouldQueue
+/**
+ * Extends BaseUserNotification but overrides via() — the mail-vs-SMS choice depends on which
+ * channel the code itself is being delivered to (VerificationCodeType), not on
+ * NotificationPreference, so it can't reuse the base class's plain mail/in-app logic wholesale.
+ * The in-app ("database") channel is still preference-gated, same as every other notification.
+ */
+final class VerificationCodeNotification extends BaseUserNotification
 {
-    use Queueable;
-
     /** Deliberately conservative — a stuck mail/SMS provider must not delay the OTP indefinitely;
      * the user can request a fresh code (rate-limited, see docs/api/conventions.md) faster than a
      * 4th retry would land anyway. */
@@ -42,12 +46,26 @@ final class VerificationCodeNotification extends Notification implements ShouldQ
         $this->onQueue('core-high');
     }
 
+    public function event(): NotificationEvent
+    {
+        return NotificationEvent::VerificationCodeSent;
+    }
+
     /**
      * @return array<int, string>
      */
     public function via(mixed $notifiable): array
     {
-        return $this->type === VerificationCodeType::Email ? ['mail'] : [LoggedSmsChannel::class];
+        $preferences = app(NotificationPreferenceService::class);
+        $channels = [];
+
+        if ($preferences->allows($notifiable, $this->event(), NotificationChannel::InApp)) {
+            $channels[] = 'database';
+        }
+
+        $channels[] = $this->type === VerificationCodeType::Email ? 'mail' : LoggedSmsChannel::class;
+
+        return $channels;
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -69,5 +87,13 @@ final class VerificationCodeNotification extends Notification implements ShouldQ
         $label = $this->purpose === VerificationCodePurpose::PasswordReset ? 'password reset' : 'verification';
 
         return "Umrany {$label} code: {$this->plainCode} (expires in {$this->expiresInMinutes} min)";
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(mixed $notifiable): array
+    {
+        return ['message' => 'A verification code was sent.', 'purpose' => $this->purpose->value];
     }
 }

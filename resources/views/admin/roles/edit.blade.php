@@ -1,34 +1,47 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Edit role')
+@section('title', __('admin.roles.edit_title'))
 
 @section('content')
     <div class="card">
-        <form method="POST" action="{{ route('admin.roles.update', $role) }}">
-            @csrf
-            @method('PUT')
+        <div class="card-body">
+            <form method="POST" action="{{ route('admin.roles.update', $role) }}">
+                @csrf
+                @method('PUT')
 
-            <label for="name">Role name</label>
-            <input type="text" id="name" name="name" value="{{ old('name', $role->name) }}" required>
+                <div class="mb-3">
+                    <label for="name" class="form-label">{{ __('admin.roles.role_name') }}</label>
+                    <input type="text" id="name" name="name" value="{{ old('name', $role->name) }}" required
+                        class="form-control @error('name') is-invalid @enderror">
+                    @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
 
-            @php $currentPermissions = old('permissions', $role->permissions->pluck('name')->all()); @endphp
+                @php $currentPermissions = old('permissions', $role->permissions->pluck('name')->all()); @endphp
 
-            @foreach ($permissionGroups as $group => $permissions)
-                <fieldset>
-                    <legend>{{ $group }}</legend>
-                    <div class="checkbox-grid">
-                        @foreach ($permissions as $permission)
-                            <label>
-                                <input type="checkbox" name="permissions[]" value="{{ $permission->name }}"
-                                    {{ in_array($permission->name, $currentPermissions) ? 'checked' : '' }}>
-                                {{ $permission->name }}
-                            </label>
-                        @endforeach
+                @foreach ($permissionGroups as $group => $permissions)
+                    <div class="card border mt-3">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0 text-capitalize">{{ $group }}</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2">
+                                @foreach ($permissions as $permission)
+                                    <div class="col-sm-6 col-lg-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="permissions[]" value="{{ $permission->name }}"
+                                                id="perm-{{ $permission->id }}"
+                                                {{ in_array($permission->name, $currentPermissions) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="perm-{{ $permission->id }}">{{ $permission->name }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
-                </fieldset>
-            @endforeach
+                @endforeach
 
-            <button type="submit" class="btn" style="margin-top:1rem;">Save</button>
-        </form>
+                <button type="submit" class="btn btn-primary mt-3">{{ __('admin.common.save') }}</button>
+            </form>
+        </div>
     </div>
 @endsection

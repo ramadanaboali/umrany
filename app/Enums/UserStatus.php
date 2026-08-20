@@ -8,11 +8,13 @@ enum UserStatus: string
 {
     case Active = 'active';
     case Suspended = 'suspended';
-    case Deleted = 'deleted';
 
     /**
-     * Per FR-AUTH-002: suspended and deleted accounts can never authenticate,
-     * regardless of how the credentials were verified.
+     * Per FR-AUTH-002: a suspended account can never authenticate, regardless of how the
+     * credentials were verified. Deletion is no longer a status value — a deleted account is a
+     * real `deleted_at` soft-delete (see App\Models\User's SoftDeletes trait), which already
+     * removes it from every normal query (including login lookups) without needing a status
+     * check at all. See docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md.
      */
     public function canAuthenticate(): bool
     {

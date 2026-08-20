@@ -38,7 +38,7 @@ final class AdminController extends Controller
     {
         $this->admins->create($request->validated());
 
-        return redirect()->route('admin.admins.index')->with('status', 'Admin created.');
+        return redirect()->route('admin.admins.index')->with('status', __('admin.flash.admin_created'));
     }
 
     public function edit(Admin $admin): View
@@ -53,13 +53,13 @@ final class AdminController extends Controller
     {
         $this->admins->update($admin, $request->validated(), Auth::guard('admin')->user());
 
-        return redirect()->route('admin.admins.index')->with('status', 'Admin updated.');
+        return redirect()->route('admin.admins.index')->with('status', __('admin.flash.admin_updated'));
     }
 
     public function destroy(Admin $admin): RedirectResponse
     {
         $this->admins->delete($admin, Auth::guard('admin')->user());
 
-        return redirect()->route('admin.admins.index')->with('status', 'Admin deleted.');
+        return redirect()->route('admin.admins.index')->with('status', __('admin.flash.admin_deleted'));
     }
 }

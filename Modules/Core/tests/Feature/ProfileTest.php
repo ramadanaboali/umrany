@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Core\Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Modules\Core\Models\City;
 use Modules\Core\Models\Country;
 use Modules\Core\Models\Currency;
@@ -100,5 +102,31 @@ class ProfileTest extends TestCase
             ->putJson('/api/v1/core/profile/currency', ['currency_id' => $currency->id])
             ->assertOk()
             ->assertJsonPath('data.preferred_currency.code', 'SAR');
+    }
+
+    public function test_avatar_upload_is_resized_and_reencoded_to_the_configured_format(): void
+    {
+        Storage::fake(config('core.avatar.disk'));
+        [$user, $token] = $this->actingUser();
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->post('/api/v1/core/profile/avatar', [
+                'avatar' => UploadedFile::fake()->image('avatar.jpg', 2000, 2000),
+            ]);
+
+        $response->assertOk()->assertJsonPath('data.avatar_url', fn ($url) => $url !== null);
+
+        $path = $user->profile()->first()->avatar_path;
+        $this->assertNotNull($path);
+        $this->assertStringEndsWith('.webp', $path);
+
+        $disk = Storage::disk(config('core.avatar.disk'));
+        $this->assertTrue($disk->exists($path));
+
+        [$width, $height, $type] = getimagesize($disk->path($path));
+        $this->assertSame((int) config('core.avatar.width'), $width);
+        $this->assertSame((int) config('core.avatar.height'), $height);
+        $this->assertSame(IMAGETYPE_WEBP, $type);
     }
 }

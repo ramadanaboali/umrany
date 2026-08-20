@@ -9,15 +9,28 @@ sub-area's business objective, key entities/concepts, and key functional require
 the API group prefix as stated in the source specification.
 
 **Implementation status**: this document describes the full target domain from the source
-specification — most of it is not built yet. Auth, Profile, and Provider (manual verification
-only, no government-CR integration) are implemented and tested; Admin's dynamic RBAC foundation
+specification — most of it is not built yet. Auth (including TOTP MFA, password history,
+soft-delete/self-service account deletion, session management, and the account-type intent
+capture described below), Profile (including automatic avatar optimization), Provider (manual
+verification only, no government-CR integration), and Notification's in-app + email channels
+(push deferred) are implemented and tested; Admin's dynamic RBAC foundation
 (`Admin`/`Role`/`Permission` on the `admin` guard, Super Admin bypass, admin/role management
-screens) is implemented as a Blade dashboard at the application root, not inside this module — see
-`docs/architecture/admin-portal.md`. Subscription, Verification's government-integration path,
-Chat, Notification, Finance, Reports, and the rest of Admin (CMS/SEO, `SystemSetting`, `AuditLog`,
-internal CRM) are still just this document's target-domain description. `Modules/Core/CLAUDE.md`'s
-"Implementation status" line and "What's actually implemented" section are the quick-reference
-version of this same fact — check there first.
+screens, plus a minimal read-mostly Users screen) is implemented as a Blade dashboard at the
+application root, not inside this module — see `docs/architecture/admin-portal.md`. Subscription,
+Verification's government-integration path, Chat, Finance, Reports, and the rest of Admin (CMS/SEO,
+`SystemSetting`, `AuditLog`, internal CRM) are still just this document's target-domain
+description. `Modules/Core/CLAUDE.md`'s "Implementation status" line and "What's actually
+implemented" section are the quick-reference version of this same fact, and `docs/decisions/0011`
+through `0020` cover the specific design decisions made while building this pass — check there
+first.
+
+A few implementation details differ from this document's target-domain description in ways worth
+flagging explicitly: **UserSession has no dedicated table** — a Sanctum `personal_access_tokens`
+row already is the per-device session record. **PasswordReset has no dedicated table for end
+users** — the same `VerificationCode` mechanism (purpose `password_reset`) handles it; admins use
+Laravel's native password-broker table instead. Registration also now accepts an optional
+`account_types` selection ("I am a: project owner and/or provider") — captured intent only, never
+an authorization source; see `docs/decisions/0016-account-type-intent-capture.md`.
 
 ---
 
@@ -455,6 +468,11 @@ action level and assigned dynamically to admin-created roles.
 ### Key entities
 
 - **Admin** — an administrative user account (distinct from platform end-user accounts).
+  `preferred_language` (`Enums\Language`, the same enum backing `UserProfile::preferred_language`)
+  drives the admin dashboard's UI language and RTL/LTR direction — see
+  `docs/decisions/0022-admin-dashboard-en-ar-localization.md`. `theme_mode` (`Enums\ThemeMode`)
+  is the account-level half of the dark/light mode toggle (the other half is `localStorage`) —
+  see `docs/decisions/0021-velzon-material-admin-theme.md`'s update note.
 - **Role / Permission / RolePermission / AdminRole** — the dynamic RBAC core: roles are created
   by admins with sufficient permission (e.g., Finance, Support, Sales, Operations, Marketing —
   names are examples, not fixed); permissions are granular action-level grants (e.g.
@@ -475,9 +493,19 @@ action level and assigned dynamically to admin-created roles.
 - **Category / Subcategory / Unit** — centralized master data for project categories, product
   categories, cities, countries, units, and other configurable lists; Arabic/English values
   maintained for admin-controlled public classifications.
-- **SystemSetting** — configurable business settings: platform commission, payment gateway fees,
-  minimum withdrawal, settlement waiting period, project moderation mode, upload limits,
-  notification configuration, subscription configuration, platform contact info, general settings.
+- **SystemSetting** — configurable *business* settings: platform commission, payment gateway
+  fees, minimum withdrawal, settlement waiting period, project moderation mode, upload limits,
+  notification configuration, subscription configuration. **Not built.** The "platform contact
+  info, general settings" slice of this originally-envisioned entity is now covered by the
+  narrower, already-built **SiteSetting** below — don't build a second contact-info/branding
+  concept here when `SystemSetting` eventually lands; extend `SiteSetting` or fold the two
+  together deliberately at that point instead.
+- **SiteSetting** — **built**. Single-row platform branding/contact/social config: site
+  name/title, logo, contact email/phone/address, social links (keyed by the same
+  `Enums\SocialPlatform` closed set `Provider::social_links` uses). Admin-managed at
+  `GET|PUT /admin/settings` (2-action permission set: `settings.view`/`settings.update` — no
+  list/create/delete for a singleton row); publicly readable at `GET /api/v1/core/settings` for
+  other clients (mobile app, marketing site footer/contact page).
 - **AuditLog** — immutable log of sensitive admin/financial actions (administrator, action,
   module, record, previous/new value, date, IP, device info); not editable by normal admins.
 - **SupportTicket / SupportTicketMessage** — centralized support ticketing (ticket number, user,
