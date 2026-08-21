@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('original_name')->nullable();
             $table->timestamp('uploaded_at');
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['provider_id', 'type']);
         });

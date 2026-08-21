@@ -14,12 +14,13 @@ return new class extends Migration
         if (! Schema::hasTable('countries')) {
             Schema::create('countries', function (Blueprint $table) {
                 $table->id();
-                $table->string('code', 2)->unique(); // ISO 3166-1 alpha-2
+                $table->string('code', 2); // ISO 3166-1 alpha-2 — uniqueness enforced below (partial, soft-delete-aware)
                 $table->string('name_en');
                 $table->string('name_ar');
                 $table->string('phone_code', 8)->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+                $table->softDeletes();
 
                 $table->index('is_active');
             });
@@ -42,10 +43,18 @@ return new class extends Migration
                 ? 'CREATE UNIQUE INDEX countries_single_default ON countries ((is_default)) WHERE is_default'
                 : 'CREATE UNIQUE INDEX countries_single_default ON countries (is_default) WHERE is_default = 1');
         }
+
+        // Soft-delete-aware uniqueness on `code` — a `WHERE deleted_at IS NULL` partial index
+        // needs no driver branch (unlike the boolean-literal one above), see
+        // docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md.
+        if (! $this->indexExists('countries', 'countries_code_active_unique')) {
+            DB::statement('CREATE UNIQUE INDEX countries_code_active_unique ON countries (code) WHERE deleted_at IS NULL');
+        }
     }
 
     public function down(): void
     {
+        DB::statement('DROP INDEX IF EXISTS countries_code_active_unique');
         DB::statement('DROP INDEX IF EXISTS countries_single_default');
         Schema::dropIfExists('countries');
     }

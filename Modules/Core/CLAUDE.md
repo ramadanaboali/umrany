@@ -39,10 +39,17 @@ speculatively.
   In-app notifications themselves are **not a custom model** — the framework's own
   `DatabaseNotification`/`Notifiable::notifications()` is reused directly, matching this module's
   existing "reuse Sanctum's own token table" precedent.
-- Country / City / Currency — shared master data for addresses and localization
-- Provider — service-provider business profile (one per user account); company info, categories, verification, subscription-gated features
+- Country / City / Currency — shared master data for addresses and localization. Soft-deletable
+  (`Country`/`Currency`'s `code` column is a partial-unique-indexed column, excluding trashed rows
+  — see `docs/decisions/0024-soft-delete-rollout-to-admin-provider-and-master-data.md`); no
+  delete-facing admin screen exists yet, this is capability only (Rule 0).
+- Provider — service-provider business profile (one per user account); company info, categories,
+  verification, subscription-gated features. Soft-deletable, with partial unique indexes on both
+  `user_id` and `commercial_registration_number` (fixed in the same ADR above — both were plain
+  unique indexes despite the model already having `SoftDeletes`, blocking reuse after a soft-delete).
 - ProviderCategory / ProviderSubcategory — business category taxonomy for providers
-- ProviderDocument — uploaded docs for manual verification review
+- ProviderDocument — uploaded docs for manual verification review. Soft-deletable (ADR 0024) —
+  preserves a provider's verification-submission history even once a document is superseded.
 - ProviderPortfolio — past-project showcase items
 - ProviderCertificate — certificates/awards/memberships
 - ProviderStatistics — public stats (rating, completed projects, response rate/time, etc.)
@@ -69,6 +76,9 @@ speculatively.
   UI language and RTL/LTR direction — see `docs/decisions/0022-admin-dashboard-en-ar-
   localization.md`. `theme_mode` (`Enums\ThemeMode`) is the account-level half of the dark/light
   mode toggle — see `docs/decisions/0021-velzon-material-admin-theme.md`'s update note.
+  Soft-deletable, with partial unique indexes on both `email` and `phone` (fixed in
+  `docs/decisions/0024-soft-delete-rollout-to-admin-provider-and-master-data.md` — both were plain
+  unique indexes despite the model already having `SoftDeletes`, blocking reuse after a soft-delete).
 - Role / Permission / RolePermission / AdminRole — dynamic RBAC: action-level permissions assigned to admin-created roles (role names not hard-coded)
 - AdminCrmLead / AdminCrmActivity — UMRANY's internal sales/provider-acquisition CRM (separate from ERP's provider-facing CRM)
 - DynamicPage / SeoMetadata — CMS pages and SEO landing-page metadata

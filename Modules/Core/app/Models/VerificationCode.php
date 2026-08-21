@@ -13,6 +13,10 @@ use Illuminate\Support\Carbon;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 
+/**
+ * Deliberately not soft-deletable — single-use, short-lived OTP rows are ephemeral by design;
+ * there's no legitimate "restore a deleted code" use case.
+ */
 class VerificationCode extends Model
 {
     use HasFactory;

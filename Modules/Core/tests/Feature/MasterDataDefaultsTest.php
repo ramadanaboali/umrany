@@ -62,4 +62,33 @@ class MasterDataDefaultsTest extends TestCase
             'code' => 'BBB', 'name_en' => 'B', 'name_ar' => 'B', 'symbol' => 'B', 'is_active' => true, 'is_default' => true,
         ]);
     }
+
+    /**
+     * Regression test for docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md's
+     * extension to Country/Currency — a bare "soft-delete succeeds" test wouldn't catch a missing
+     * or wrong partial index; this proves the `code` column is genuinely reusable after deletion.
+     */
+    public function test_soft_deleted_country_code_can_be_reused(): void
+    {
+        $country = Country::create(['code' => 'ZZ', 'name_en' => 'Zed', 'name_ar' => 'Zed', 'is_active' => true]);
+        $country->delete();
+
+        $this->assertSoftDeleted($country);
+
+        Country::create(['code' => 'ZZ', 'name_en' => 'New Zed', 'name_ar' => 'New Zed', 'is_active' => true]);
+
+        $this->assertDatabaseCount('countries', 2);
+    }
+
+    public function test_soft_deleted_currency_code_can_be_reused(): void
+    {
+        $currency = Currency::create(['code' => 'ZZZ', 'name_en' => 'Zed', 'name_ar' => 'Zed', 'symbol' => 'Z', 'is_active' => true]);
+        $currency->delete();
+
+        $this->assertSoftDeleted($currency);
+
+        Currency::create(['code' => 'ZZZ', 'name_en' => 'New Zed', 'name_ar' => 'New Zed', 'symbol' => 'Z', 'is_active' => true]);
+
+        $this->assertDatabaseCount('currencies', 2);
+    }
 }

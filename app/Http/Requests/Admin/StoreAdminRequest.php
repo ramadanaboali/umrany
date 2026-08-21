@@ -32,8 +32,11 @@ final class StoreAdminRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:admins,email'],
-            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, 'unique:admins,phone'],
+            // whereNull('deleted_at'): a soft-deleted admin's email/phone must be free for a new
+            // admin to reuse — see docs/decisions/0014-user-soft-deletes-and-partial-unique-
+            // indexes.md.
+            'email' => ['required', 'email', 'max:255', Rule::unique('admins', 'email')->whereNull('deleted_at')],
+            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, Rule::unique('admins', 'phone')->whereNull('deleted_at')],
             'password' => ['required', 'confirmed', PasswordRule::defaults()],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'admin')],

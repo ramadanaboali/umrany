@@ -6,6 +6,7 @@ namespace Modules\Core\Http\Requests\Provider;
 
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Modules\Core\Enums\SocialPlatform;
 
 final class ActivateProviderRequest extends FormRequest
@@ -26,7 +27,9 @@ final class ActivateProviderRequest extends FormRequest
             'country_id' => ['nullable', 'exists:countries,id'],
             'city_id' => ['nullable', 'exists:cities,id'],
             'address' => ['nullable', 'string', 'max:255'],
-            'commercial_registration_number' => ['nullable', 'string', 'max:64', 'unique:providers,commercial_registration_number'],
+            // whereNull('deleted_at'): a soft-deleted provider's CR number must be free to reuse —
+            // see docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md.
+            'commercial_registration_number' => ['nullable', 'string', 'max:64', Rule::unique('providers', 'commercial_registration_number')->whereNull('deleted_at')],
             'license_number' => ['nullable', 'string', 'max:64'],
             'tax_number' => ['nullable', 'string', 'max:64'],
             'year_established' => ['nullable', 'integer', 'min:1900', 'max:'.date('Y')],

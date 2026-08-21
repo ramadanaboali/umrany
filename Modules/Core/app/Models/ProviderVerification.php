@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Enums\ProviderVerificationStatus;
 
+/**
+ * Deliberately not soft-deletable — one current-status row per provider that transitions state
+ * (not_submitted → pending → approved/rejected, etc.), never removed.
+ */
 class ProviderVerification extends Model
 {
     use HasFactory;

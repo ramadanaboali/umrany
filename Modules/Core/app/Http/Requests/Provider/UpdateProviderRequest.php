@@ -29,7 +29,9 @@ final class UpdateProviderRequest extends FormRequest
             'country_id' => ['sometimes', 'nullable', 'exists:countries,id'],
             'city_id' => ['sometimes', 'nullable', 'exists:cities,id'],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'commercial_registration_number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('providers', 'commercial_registration_number')->ignore($providerId)],
+            // whereNull('deleted_at'): a soft-deleted provider's CR number must be free to reuse —
+            // see docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md.
+            'commercial_registration_number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('providers', 'commercial_registration_number')->ignore($providerId)->whereNull('deleted_at')],
             'license_number' => ['sometimes', 'nullable', 'string', 'max:64'],
             'tax_number' => ['sometimes', 'nullable', 'string', 'max:64'],
             'year_established' => ['sometimes', 'nullable', 'integer', 'min:1900', 'max:'.date('Y')],

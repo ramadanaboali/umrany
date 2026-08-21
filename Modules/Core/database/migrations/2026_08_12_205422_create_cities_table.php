@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('name_ar');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['country_id', 'is_active']);
         });

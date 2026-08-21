@@ -14,12 +14,13 @@ return new class extends Migration
         if (! Schema::hasTable('currencies')) {
             Schema::create('currencies', function (Blueprint $table) {
                 $table->id();
-                $table->string('code', 3)->unique(); // ISO 4217
+                $table->string('code', 3); // ISO 4217 — uniqueness enforced below (partial, soft-delete-aware)
                 $table->string('name_en');
                 $table->string('name_ar');
                 $table->string('symbol', 8);
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+                $table->softDeletes();
 
                 $table->index('is_active');
             });
@@ -38,10 +39,17 @@ return new class extends Migration
                 ? 'CREATE UNIQUE INDEX currencies_single_default ON currencies ((is_default)) WHERE is_default'
                 : 'CREATE UNIQUE INDEX currencies_single_default ON currencies (is_default) WHERE is_default = 1');
         }
+
+        // Soft-delete-aware uniqueness on `code` — see the countries migration's identical
+        // addition; docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md.
+        if (! $this->indexExists('currencies', 'currencies_code_active_unique')) {
+            DB::statement('CREATE UNIQUE INDEX currencies_code_active_unique ON currencies (code) WHERE deleted_at IS NULL');
+        }
     }
 
     public function down(): void
     {
+        DB::statement('DROP INDEX IF EXISTS currencies_code_active_unique');
         DB::statement('DROP INDEX IF EXISTS currencies_single_default');
         Schema::dropIfExists('currencies');
     }

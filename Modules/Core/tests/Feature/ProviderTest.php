@@ -164,4 +164,48 @@ class ProviderTest extends TestCase
             ->delete('/api/v1/core/providers/me/cover')
             ->assertStatus(204);
     }
+
+    /**
+     * Regression test for docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md's
+     * extension to Provider — `providers` already had SoftDeletes but was left on a plain unique
+     * `user_id` index, permanently blocking a soft-deleted provider's former owner from ever
+     * activating a new one. No HTTP delete-provider endpoint exists yet, so the soft-delete itself
+     * is done directly on the model (matching how this would actually occur once one is built).
+     */
+    public function test_same_user_can_reactivate_a_provider_after_the_previous_one_is_soft_deleted(): void
+    {
+        [$user, $token] = $this->verifiedUser();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/v1/core/providers', ['company_name' => 'Acme'])
+            ->assertStatus(201);
+
+        $provider = $user->provider()->first();
+        $provider->delete();
+        $this->assertSoftDeleted($provider);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/v1/core/providers', ['company_name' => 'Acme Reborn'])
+            ->assertStatus(201);
+    }
+
+    /**
+     * Same fix, the other affected column — a soft-deleted provider's commercial_registration_
+     * number must be free for a *different* account to reuse.
+     */
+    public function test_a_different_account_can_reuse_a_soft_deleted_providers_cr_number(): void
+    {
+        [$firstOwner, $firstToken] = $this->verifiedUser();
+        [, $secondToken] = $this->verifiedUser();
+
+        $this->withHeader('Authorization', "Bearer {$firstToken}")
+            ->postJson('/api/v1/core/providers', ['company_name' => 'Acme', 'commercial_registration_number' => 'CR-REUSED'])
+            ->assertStatus(201);
+
+        $firstOwner->provider()->first()->delete();
+
+        $this->withHeader('Authorization', "Bearer {$secondToken}")
+            ->postJson('/api/v1/core/providers', ['company_name' => 'Someone Else', 'commercial_registration_number' => 'CR-REUSED'])
+            ->assertStatus(201);
+    }
 }

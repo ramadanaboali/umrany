@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Enums\NotificationEvent;
 
+/**
+ * Deliberately not soft-deletable — a per-user-per-event settings row, always updated in place
+ * (see NotificationPreferenceService::update()'s updateOrCreate), never listed or removed.
+ */
 class NotificationPreference extends Model
 {
     protected $guarded = ['id'];

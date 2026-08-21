@@ -173,6 +173,35 @@ spells all of this out.
   `Modules/<X>/CLAUDE.md`, `docs/modules/<x>.md`, and — for a real architectural or business
   decision — a new `docs/decisions/NNNN-*.md` ADR, in the same change the code changes.
 
+## Rule 9 — soft-delete by default; every API route stays versioned
+
+Two standing defaults, made permanent after a system-wide pass fixed the gaps where they weren't
+yet applied (see `docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md` for the
+original pattern and its later extension).
+
+- **Every new Eloquent model backed by its own table defaults to `SoftDeletes`.** Skip it only for
+  one of these specific, documented shapes — not a general "doesn't feel necessary" judgment call:
+  an append-only/immutable log (e.g. `PasswordHistory`), a singleton config row (e.g.
+  `SiteSetting`), a security-sensitive secret/credential whose recoverability would itself be a
+  regression (e.g. `UserMfaSetting`, `MfaRecoveryCode` — these already hard-delete-and-replace on
+  disable/regenerate, deliberately), or a dependent/owned record with no independent deletion
+  semantics of its own (e.g. `UserProfile`, always removed only via its parent `User`). When you
+  skip it, say so in a one-line comment on the model — see any of the models just named for the
+  pattern to match.
+- **Any unique constraint on a soft-deletable table must be a partial unique index excluding
+  trashed rows** (`CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL`), never a plain unique index —
+  a plain one permanently blocks re-registration/re-creation under the same value after a
+  soft-delete, exactly the bug this rule's origin ADR fixed for `users`, then `admins`/`providers`.
+  This specific `IS NULL` condition needs no Postgres/SQLite driver branching (unlike a
+  boolean-literal partial condition, e.g. a `is_default`-style singleton flag — see
+  `docs/decisions/0020-database-backed-platform-defaults.md`).
+- **Every new API route must be registered under a versioned prefix**
+  (`/api/v{n}/<module-alias>/...`), matching the existing per-module `routes/api.php` convention
+  (`docs/api/conventions.md` § Versioning and routing). `tests/Feature/ApiVersioningTest.php`
+  enforces this automatically — it fails if any route in the `api` middleware group isn't
+  versioned. Treat a failure there as a hard blocker to fix the route, never as a test to loosen or
+  delete.
+
 ## Commands (everything runs through Docker)
 
 ```bash

@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Deliberately not soft-deletable — regenerating already hard-deletes and replaces the whole
+ * batch; recovering a superseded recovery code would be a security regression, not a feature.
+ */
 class MfaRecoveryCode extends Model
 {
     protected $guarded = ['id'];

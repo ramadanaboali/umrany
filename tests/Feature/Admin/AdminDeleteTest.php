@@ -61,4 +61,35 @@ class AdminDeleteTest extends TestCase
         $response->assertSessionHasErrors('admin');
         $this->assertNotSoftDeleted($onlySuperAdmin);
     }
+
+    /**
+     * Regression test for docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md's
+     * extension to Admin — `admins` already had SoftDeletes but was left on plain unique indexes,
+     * permanently blocking a soft-deleted admin's email/phone from ever being reused. A bare
+     * "delete succeeds" test (see the others in this file) wouldn't catch that.
+     */
+    public function test_soft_deleted_admin_email_and_phone_can_be_reused(): void
+    {
+        $actor = $this->admin(superAdmin: true);
+        $target = Admin::forceCreate([
+            'name' => 'Reused Admin',
+            'email' => 'reused@umrany.test',
+            'phone' => '+966501111111',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+        ]);
+
+        $this->actingAs($actor, 'admin')->delete("/admin/admins/{$target->id}")->assertRedirect();
+        $this->assertSoftDeleted($target);
+
+        Admin::forceCreate([
+            'name' => 'New Owner',
+            'email' => 'reused@umrany.test',
+            'phone' => '+966501111111',
+            'password' => Hash::make('Password123'),
+            'status' => AdminStatus::Active,
+        ]);
+
+        $this->assertDatabaseCount('admins', 3); // actor + soft-deleted target + reused
+    }
 }

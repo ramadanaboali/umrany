@@ -42,7 +42,7 @@ final class UpdateOwnProfileRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, Rule::unique('admins', 'phone')->ignore(Auth::guard('admin')->id())],
+            'phone' => ['nullable', 'string', 'max:32', new SaudiOrEgyptianPhoneNumber, Rule::unique('admins', 'phone')->ignore(Auth::guard('admin')->id())->whereNull('deleted_at')],
             'current_password' => $changingPassword ? ['required', 'current_password:admin'] : ['nullable'],
             'password' => ['sometimes', 'nullable', 'confirmed', PasswordRule::defaults(), new NotAPreviousPassword(Auth::guard('admin')->user())],
         ];

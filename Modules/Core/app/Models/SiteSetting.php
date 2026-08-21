@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  * Platform-wide branding/contact/social config — a single row (id=1, guaranteed by
  * SiteSettingSeeder). Deliberately distinct from the future, broader `SystemSetting` entity
  * (business config — commission, gateway fees — still not built, see Modules/Core/CLAUDE.md).
+ * Deliberately not soft-deletable — a literal singleton config row, never removed.
  */
 #[Fillable(['site_name', 'site_title', 'logo_path', 'contact_email', 'contact_phone', 'contact_address', 'social_links'])]
 class SiteSetting extends Model
