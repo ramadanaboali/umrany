@@ -33,6 +33,13 @@ use Modules\Core\Http\Controllers\SiteSettingController;
 | all stay reachable to an unverified-but-authenticated user. Gating any of those creates either
 | an unrecoverable lockout (a typo'd email that can never receive a code) or actively worsens
 | security (refusing to let a possibly-compromised account rotate its password/kill a session).
+|
+| Login itself is a separate, stricter gate (docs/decisions/0026-block-login-until-account-
+| verified.md): POST /auth/login rejects an unverified account outright, not just certain
+| endpoints once signed in. Since that closes off the authenticated resend-code/verify endpoints
+| below as a recovery path for an account that lost its only (registration-issued) session, the
+| public resend-verification/verify-account endpoints exist specifically so verification is never
+| unreachable — never remove those without an equivalent recovery path.
 */
 
 Route::prefix('v1/core')->name('core.')->group(function () {
@@ -50,6 +57,8 @@ Route::prefix('v1/core')->name('core.')->group(function () {
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset')->name('auth.forgot-password');
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset')->name('auth.reset-password');
     Route::post('/auth/mfa/challenge', [AuthController::class, 'mfaChallenge'])->middleware('throttle:mfa-challenge')->name('auth.mfa.challenge');
+    Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationPublic'])->middleware('throttle:verification-public')->name('auth.verification.resend');
+    Route::post('/auth/verify-account', [AuthController::class, 'verifyAccountPublic'])->middleware('throttle:verification-public')->name('auth.verification.verify');
 
     // --- Authenticated (Sanctum) ---
     Route::middleware('auth:sanctum')->group(function () {

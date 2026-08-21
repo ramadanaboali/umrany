@@ -170,10 +170,18 @@ reconsider the design (likely needs a new Contract or Event instead).
   `password_reset`) is a separate axis from `Enums/VerificationCodeType` (the delivery channel,
   `email` vs `mobile`) — don't conflate the two when adding a new code-gated flow. Named rate
   limiters (`login`, `verification-code`, `verification-code-consume`, `password-reset`,
-  `mutations`, `mfa-challenge`) are registered in `app/Providers/AppServiceProvider` and applied
-  per-route in `routes/api.php` — see `docs/api/conventions.md` § Rate limiting. Account
-  verification gates most-but-not-all authenticated endpoints — see `docs/decisions/0015-account-
-  verification-gate-policy.md` for the exact rule and route split.
+  `mutations`, `mfa-challenge`, `verification-public`) are registered in
+  `app/Providers/AppServiceProvider` and applied per-route in `routes/api.php` — see
+  `docs/api/conventions.md` § Rate limiting. Account verification gates most-but-not-all
+  authenticated endpoints — see `docs/decisions/0015-account-verification-gate-policy.md` for the
+  exact rule and route split. **Login itself is a stricter, separate gate**: a registered account
+  starts as `App\Enums\UserStatus::PendingVerification` (not `Active`) and `POST /auth/login`
+  rejects it outright with a distinct message until `hasVerifiedIdentity()` is true — see
+  `docs/decisions/0026-block-login-until-account-verified.md`. Since that closes off the
+  authenticated `resend-code`/`verify` endpoints as a recovery path for a lost/expired
+  registration session, `POST /auth/resend-verification` and `.../auth/verify-account` are public
+  (unauthenticated) equivalents that exist specifically so verification is never unreachable —
+  don't remove them without an equivalent replacement.
 - **TOTP MFA** (`MfaController`, `Services/MfaService`, `Models/UserMfaSetting`,
   `Models/MfaRecoveryCode`): opt-in, default disabled, enrollable at registration or via profile;
   never enforced until a confirm step succeeds. A confirmed setting switches login into a two-step

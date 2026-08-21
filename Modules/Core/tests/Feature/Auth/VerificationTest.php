@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Tests\Feature\Auth;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Modules\Core\Enums\VerificationCodePurpose;
@@ -41,6 +42,36 @@ class VerificationTest extends TestCase
 
         $this->assertNotNull($code->refresh()->consumed_at);
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    /**
+     * Regression test for docs/decisions/0026-block-login-until-account-verified.md — the first
+     * successful verification promotes a still-pending account to Active, mirroring what real
+     * registration produces (PendingVerification) rather than the shared `authenticatedUser()`
+     * helper's status='active' DB-default fixture.
+     */
+    public function test_first_verification_promotes_a_pending_account_to_active(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'pending@example.com',
+            'email_verified_at' => null,
+            'status' => UserStatus::PendingVerification,
+        ]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        VerificationCode::create([
+            'user_id' => $user->id,
+            'type' => VerificationCodeType::Email,
+            'purpose' => VerificationCodePurpose::AccountVerification,
+            'code_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/v1/core/auth/verify', ['type' => 'email', 'code' => '123456'])
+            ->assertOk();
+
+        $this->assertSame(UserStatus::Active, $user->refresh()->status);
     }
 
     public function test_wrong_code_is_rejected_and_counts_as_an_attempt(): void

@@ -104,5 +104,15 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($key);
         });
+
+        // Public (unauthenticated) account-verification resend/consume — the recovery path for an
+        // account that's lost its only session before ever verifying (see docs/decisions/0026-
+        // block-login-until-account-verified.md). Same shape as `login`/`password-reset`: keyed
+        // on the submitted identifier + IP, since this is reachable with no session at all.
+        RateLimiter::for('verification-public', function (Request $request) {
+            $key = strtolower((string) $request->input('login')).'|'.$request->ip();
+
+            return Limit::perMinute(3)->by($key);
+        });
     }
 }

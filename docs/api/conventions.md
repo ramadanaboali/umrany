@@ -156,6 +156,7 @@ registered in `app/Providers/AppServiceProvider::boot()`, applied per-route via
 | `password-reset` | `.../auth/forgot-password`, `.../auth/reset-password`, `.../auth/password` (change), `.../auth/account` (delete), `/admin/forgot-password`, `/admin/reset-password` | 3/minute | IP |
 | `mutations` | The general per-user write limiter — MFA management, profile/avatar/language/currency updates, notification preferences | 30/minute | authenticated user id (falls back to IP) |
 | `mfa-challenge` | `POST /api/v1/core/auth/mfa/challenge` (public — no session exists yet at this point) | 5/minute | `challenge_token` + IP |
+| `verification-public` | `POST /api/v1/core/auth/resend-verification`, `.../auth/verify-account` (public — the recovery path for an account that lost its session before ever verifying, see `docs/decisions/0026-block-login-until-account-verified.md`) | 3/minute | `login` input + IP |
 
 **Still open**: no other endpoint has a limiter beyond the generic `throttle:api` — read-heavy
 browsing endpoints (master data, future Projects/ECommerce listing endpoints) and AI endpoints

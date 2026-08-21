@@ -18,7 +18,9 @@ use Modules\Core\Http\Requests\Auth\LoginRequest;
 use Modules\Core\Http\Requests\Auth\MfaChallengeRequest;
 use Modules\Core\Http\Requests\Auth\RegisterRequest;
 use Modules\Core\Http\Requests\Auth\ResendVerificationCodeRequest;
+use Modules\Core\Http\Requests\Auth\ResendVerificationPublicRequest;
 use Modules\Core\Http\Requests\Auth\ResetPasswordRequest;
+use Modules\Core\Http\Requests\Auth\VerifyAccountPublicRequest;
 use Modules\Core\Http\Requests\Auth\VerifyAccountRequest;
 use Modules\Core\Http\Resources\AuthPayloadResource;
 use Modules\Core\Http\Resources\MfaSetupResource;
@@ -41,8 +43,11 @@ final class AuthController extends Controller
      *
      * Create an account with a mobile number or email address (at least one is required).
      * Issues a verification code to whichever identifier was provided and returns an API token
-     * immediately — the account can authenticate right away, but protected endpoints stay
-     * gated behind `account.verified` until the code is confirmed via POST .../auth/verify.
+     * immediately, usable right away to complete verification (POST .../auth/verify) — but the
+     * account cannot sign in again via POST .../auth/login until it's verified. If this token is
+     * lost before verifying, POST .../auth/resend-verification and .../auth/verify-account are
+     * the recovery path (no session required). See docs/decisions/0026-block-login-until-account-
+     * verified.md.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -175,6 +180,58 @@ final class AuthController extends Controller
         }
 
         return response()->json(['data' => ['user' => new UserResource($user->refresh())]]);
+    }
+
+    /**
+     * Resend verification code (no session required)
+     *
+     * Recovery path for an account that lost its only session before ever verifying — since
+     * .../auth/login rejects an unverified account, this is otherwise the only way back in. Always
+     * responds with the same generic message regardless of whether the identifier matches a real,
+     * not-yet-verified account, so this can't be used to enumerate registered emails/mobiles.
+     */
+    public function resendVerificationPublic(ResendVerificationPublicRequest $request): JsonResponse
+    {
+        $login = $request->string('login')->value();
+        $user = $this->findUserByLogin($login);
+
+        if ($user !== null) {
+            $type = $this->channelFor($user, $login);
+            $alreadyVerified = $type === VerificationCodeType::Email
+                ? $user->email_verified_at !== null
+                : $user->mobile_verified_at !== null;
+
+            if (! $alreadyVerified) {
+                $this->auth->resendVerificationCode($user, $type);
+            }
+        }
+
+        return response()->json(['message' => 'If that account exists and needs verification, a code has been sent.']);
+    }
+
+    /**
+     * Verify account (no session required)
+     *
+     * Same recovery path as above, completing verification with the code just sent. On success,
+     * sign in normally via POST .../auth/login — this endpoint doesn't itself issue a session.
+     */
+    public function verifyAccountPublic(VerifyAccountPublicRequest $request): JsonResponse
+    {
+        $login = $request->string('login')->value();
+        $user = $this->findUserByLogin($login);
+
+        if ($user === null) {
+            // Same message as the real failure path below — no distinction leaks account existence.
+            return response()->json(['message' => 'This code is invalid or has expired.'], 422);
+        }
+
+        $verified = $this->auth->verifyAccount($user, $this->channelFor($user, $login), $request->string('code')->value());
+
+        if (! $verified) {
+            return response()->json(['message' => 'This code is invalid or has expired.'], 422);
+        }
+
+        return response()->json(['message' => 'Account verified. Please sign in.']);
     }
 
     /**

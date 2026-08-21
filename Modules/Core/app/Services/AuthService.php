@@ -51,7 +51,9 @@ final class AuthService
                 'mobile' => PhoneNumber::normalize($data['mobile'] ?? null),
                 'password' => $data['password'],
                 'terms_accepted_at' => now(),
-                'status' => UserStatus::Active,
+                // Not Active until verified — see docs/decisions/0026-block-login-until-account-
+                // verified.md. verifyAccount() promotes this to Active on success.
+                'status' => UserStatus::PendingVerification,
                 'account_types' => $data['account_types'] ?? null,
             ]);
 
@@ -108,6 +110,19 @@ final class AuthService
         if (! $user->canAuthenticate()) {
             throw ValidationException::withMessages([
                 'login' => ['This account cannot sign in. Contact support if you believe this is a mistake.'],
+            ]);
+        }
+
+        // The account exists and the password is correct — there's no anti-enumeration value
+        // left to protect by staying generic here, so this gets its own distinct message rather
+        // than reusing the "credentials do not match" one. See docs/decisions/0026-block-login-
+        // until-account-verified.md for why login (not just resource-consuming endpoints) is
+        // gated, and Modules\Core\Http\Controllers\AuthController::resendVerificationPublic()/
+        // verifyAccountPublic() for how an account that's lost its original session can still
+        // verify without ever being able to log in.
+        if (! $user->hasVerifiedIdentity()) {
+            throw ValidationException::withMessages([
+                'login' => ['Please verify your account before signing in.'],
             ]);
         }
 
@@ -202,10 +217,20 @@ final class AuthService
             return false;
         }
 
-        match ($type) {
-            VerificationCodeType::Email => $this->users->forceUpdate($user, ['email_verified_at' => now()]),
-            VerificationCodeType::Mobile => $this->users->forceUpdate($user, ['mobile_verified_at' => now()]),
+        $attributes = match ($type) {
+            VerificationCodeType::Email => ['email_verified_at' => now()],
+            VerificationCodeType::Mobile => ['mobile_verified_at' => now()],
         };
+
+        // First verification (either channel) promotes a still-pending account to Active — see
+        // docs/decisions/0026-block-login-until-account-verified.md. A user re-verifying a
+        // changed email/mobile (ProfileService::updateProfile()'s re-verification trigger) is
+        // already Active by then, so this is a no-op for that case.
+        if ($user->status === UserStatus::PendingVerification) {
+            $attributes['status'] = UserStatus::Active;
+        }
+
+        $this->users->forceUpdate($user, $attributes);
 
         return true;
     }

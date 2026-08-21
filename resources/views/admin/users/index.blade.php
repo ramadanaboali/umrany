@@ -32,7 +32,11 @@
                                 <td>{{ $user->email ?? __('admin.common.none') }}</td>
                                 <td>{{ $user->mobile ?? __('admin.common.none') }}</td>
                                 <td>
-                                    <span class="badge {{ $user->status->value === 'active' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }}">
+                                    <span class="badge {{ match ($user->status->value) {
+                                        'active' => 'bg-success-subtle text-success',
+                                        'pending_verification' => 'bg-warning-subtle text-warning',
+                                        default => 'bg-danger-subtle text-danger',
+                                    } }}">
                                         {{ $user->status->value }}
                                     </span>
                                 </td>

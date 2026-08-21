@@ -43,7 +43,8 @@ class RegisterTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'ahmed@example.com']);
         $user = User::where('email', 'ahmed@example.com')->first();
         $this->assertNotNull($user->profile, 'a default profile must be created on registration');
-        $this->assertSame('active', $user->status->value);
+        // Not Active until verified — see docs/decisions/0026-block-login-until-account-verified.md.
+        $this->assertSame('pending_verification', $user->status->value);
     }
 
     public function test_can_register_with_mobile_only_no_email(): void
@@ -156,6 +157,12 @@ class RegisterTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonStructure(['data' => ['mfa' => ['secret', 'otpauth_uri', 'qr_svg']]]);
+
+        // Isolate this test's actual concern (unconfirmed MFA enrollment must not gate login)
+        // from the separate account-verification gate (docs/decisions/0026-block-login-until-
+        // account-verified.md) by verifying the account directly, the way completing the real
+        // verify flow would.
+        User::where('email', 'mfa-enroll@example.com')->update(['email_verified_at' => now(), 'status' => 'active']);
 
         // Enrollment was never confirmed via POST .../auth/mfa/confirm, so it must not gate login.
         $login = $this->postJson('/api/v1/core/auth/login', [

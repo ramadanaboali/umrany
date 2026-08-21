@@ -74,6 +74,44 @@ class LoginTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('login');
     }
 
+    /**
+     * Regression test for docs/decisions/0026-block-login-until-account-verified.md — an
+     * unverified account (whatever its status — this one is explicitly Active to isolate the
+     * check from status entirely) must be rejected at login with a distinct message, not the
+     * generic anti-enumeration one, since the password is genuinely correct at this point.
+     */
+    public function test_unverified_account_cannot_log_in(): void
+    {
+        User::factory()->create([
+            'email' => 'unverified@example.com',
+            'password' => 'Secr3tPass',
+            'status' => UserStatus::Active,
+            'email_verified_at' => null,
+        ]);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'unverified@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertStatus(422)->assertJsonPath('errors.login.0', 'Please verify your account before signing in.');
+    }
+
+    public function test_verified_account_with_pending_verification_status_can_log_in_normally(): void
+    {
+        // status is only a byproduct of registration defaulting to PendingVerification — a
+        // verified identity is what actually gates login, independent of status.
+        User::factory()->create([
+            'email' => 'edge-case@example.com',
+            'password' => 'Secr3tPass',
+            'status' => UserStatus::PendingVerification,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'edge-case@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertOk();
+    }
+
     public function test_authenticated_user_can_log_out(): void
     {
         $user = User::factory()->create();
