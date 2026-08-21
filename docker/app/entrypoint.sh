@@ -17,6 +17,7 @@ mkdir -p "$(dirname "$LOCK_FILE")"
     flock 9
     php artisan migrate --force --isolated
     php artisan db:seed --force
+    [ -L public/storage ] || php artisan storage:link --force
 ) 9>"$LOCK_FILE"
 
 exec "$@"

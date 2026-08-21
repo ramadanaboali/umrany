@@ -48,6 +48,20 @@ without a default, a new unique constraint), account for the fact that it may ru
 database that already has real data from a previous boot — same discipline as any production
 migration, just triggered more often here than usual.
 
+The same boot sequence also runs `php artisan storage:link` (guarded by `[ -L public/storage ]` so
+it's a no-op once the link exists) — `public/storage` is gitignored (it's a generated symlink, not
+tracked) and lives only on the bind-mounted volume, so a fresh clone, a wiped `public/` directory,
+or a volume reset silently loses it. Without the link, every uploaded-file URL (avatars, provider
+logos, the site-settings logo) is *correctly formed* by `Storage::disk('public')->url(...)` but
+404s, because nothing actually serves `storage/app/public/*` at `/storage/*` without it — this
+happened for real once already (a site-settings logo upload whose URL 404'd) before this line was
+added. **Editing `docker/app/entrypoint.sh` requires a full image rebuild to take effect** —
+unlike most of this repo, it's `COPY`'d into the image at build time (`docker/app/Dockerfile`), not
+bind-mounted, so `docker compose up -d --force-recreate app` alone reuses the *old* entrypoint
+already baked into the existing image. Run `docker compose build app` first, matching the same
+"new package/env change needs a real rebuild" gotcha root `CLAUDE.md` Rule 4 documents for Octane
+workers — this is the equivalent gotcha one layer down, for the entrypoint script itself.
+
 ## Dev/ops tooling served through the `app` container
 
 Two things ride on top of the `app` container rather than being separate services:
