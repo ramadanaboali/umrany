@@ -16,6 +16,7 @@ final class NewDeviceLoginNotification extends BaseUserNotification
         private readonly ?string $deviceName,
         private readonly ?string $ip,
         private readonly Carbon $loggedInAt,
+        private readonly string $renderLocale,
     ) {
         $this->onQueue('core-default');
     }
@@ -36,11 +37,11 @@ final class NewDeviceLoginNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('New login to your Umrany account')
-            ->greeting('New device login')
-            ->line("Your account was just signed in from a device we haven't seen before: {$this->deviceLabel()}.")
-            ->line("Time: {$this->loggedInAt->toDayDateTimeString()}")
-            ->line('If this was not you, change your password immediately.');
+            ->subject(__('core::notifications.new_device_login.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.new_device_login.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.new_device_login.line_1', ['device' => $this->deviceLabel()], $this->renderLocale))
+            ->line(__('core::notifications.new_device_login.line_2', ['time' => $this->loggedInAt->toDayDateTimeString()], $this->renderLocale))
+            ->line(__('core::notifications.new_device_login.line_3', [], $this->renderLocale));
     }
 
     /**
@@ -49,7 +50,7 @@ final class NewDeviceLoginNotification extends BaseUserNotification
     public function toArray(mixed $notifiable): array
     {
         return [
-            'message' => "New login from {$this->deviceLabel()}.",
+            'message' => __('core::notifications.new_device_login.in_app', ['device' => $this->deviceLabel()], $this->renderLocale),
             'device_name' => $this->deviceName,
             'ip' => $this->ip,
             'logged_in_at' => $this->loggedInAt->toIso8601String(),
@@ -58,6 +59,6 @@ final class NewDeviceLoginNotification extends BaseUserNotification
 
     private function deviceLabel(): string
     {
-        return $this->deviceName ?? $this->ip ?? 'an unknown device';
+        return $this->deviceName ?? $this->ip ?? __('core::notifications.new_device_login.unknown_device', [], $this->renderLocale);
     }
 }

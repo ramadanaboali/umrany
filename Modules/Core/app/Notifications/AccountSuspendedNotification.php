@@ -8,18 +8,18 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Modules\Core\Enums\NotificationEvent;
 
 /**
- * No dispatch site exists yet — there is currently no admin/system action that changes a
- * User::$status after registration (no end-user-management "suspend" screen has been built, see
- * docs/architecture/admin-portal.md "What's still open"). This class exists ready to dispatch the
- * moment such an action lands; building the admin action itself is out of scope here (root
- * CLAUDE.md Rule 0). Mandatory — see NotificationEvent::isMandatory().
+ * Dispatched from Modules\Core\Services\Admin\UserManagementService::suspend() — see
+ * docs/decisions/0027-admin-user-suspend-reactivate.md. Mandatory — see
+ * NotificationEvent::isMandatory().
  */
 final class AccountSuspendedNotification extends BaseUserNotification
 {
     public int $tries = 3;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly string $reason,
+        private readonly string $renderLocale,
+    ) {
         $this->onQueue('core-default');
     }
 
@@ -39,10 +39,11 @@ final class AccountSuspendedNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your Umrany account has been suspended')
-            ->greeting('Account suspended')
-            ->line('Your account has been suspended.')
-            ->line('Contact support if you believe this is a mistake.');
+            ->subject(__('core::notifications.account_suspended.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.account_suspended.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.account_suspended.line_1', [], $this->renderLocale))
+            ->line(__('core::notifications.account_suspended.line_reason', ['reason' => $this->reason], $this->renderLocale))
+            ->line(__('core::notifications.account_suspended.line_3', [], $this->renderLocale));
     }
 
     /**
@@ -50,6 +51,9 @@ final class AccountSuspendedNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'Your account has been suspended.'];
+        return [
+            'message' => __('core::notifications.account_suspended.in_app', [], $this->renderLocale),
+            'reason' => $this->reason,
+        ];
     }
 }

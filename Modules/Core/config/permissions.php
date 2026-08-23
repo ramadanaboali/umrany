@@ -26,14 +26,15 @@ return [
         'roles.create',
         'roles.update',
         'roles.delete',
-        // Deliberately 3 actions, not the usual 5 (docs/decisions/0009-granular-crud-admin-
-        // permissions.md's convention) — end users self-register and self-delete their own
-        // accounts (see docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md),
-        // there is no admin "create a user"/"delete a user" screen to gate. `users.update` covers
-        // the one mutating admin action that exists: revoking a user's sessions.
+        // Deliberately 4 actions, not the usual 5 (docs/decisions/0009-granular-crud-admin-
+        // permissions.md's convention) — end users still self-register, so there is no admin
+        // "create a user" screen to gate. `users.update` covers session revocation and
+        // suspend/reactivate; `users.delete` covers admin-initiated account deletion. See
+        // docs/decisions/0027-admin-user-suspend-reactivate.md.
         'users.list',
         'users.view',
         'users.update',
+        'users.delete',
         // Deliberately 2 actions, not 5 — `SiteSetting` (Modules\Core\Models\SiteSetting) is a
         // singleton row that always exists (Modules\Core\Database\Seeders\SiteSettingSeeder),
         // so there's no list/create/delete screen to gate. See docs/architecture/admin-portal.md.
@@ -45,7 +46,7 @@ return [
         'Operations' => [
             'admins.list', 'admins.view', 'admins.create', 'admins.update', 'admins.delete',
             'roles.list', 'roles.view', 'roles.create', 'roles.update', 'roles.delete',
-            'users.list', 'users.view', 'users.update',
+            'users.list', 'users.view', 'users.update', 'users.delete',
             'settings.view', 'settings.update',
         ],
         'Support' => ['admins.list', 'admins.view', 'roles.list', 'roles.view', 'users.list', 'users.view', 'settings.view'],

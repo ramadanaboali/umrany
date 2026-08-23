@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Requests\Admin\StoreRoleRequest;
 use App\Http\Requests\Admin\UpdateRoleRequest;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -21,10 +22,11 @@ final class RoleController extends Controller
         private readonly RoleManagementService $roles,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.roles.index', [
-            'roles' => $this->roles->all(),
+            'roles' => $this->roles->paginate(search: $request->string('search')->value() ?: null),
+            'search' => $request->string('search')->value(),
         ]);
     }
 

@@ -6,10 +6,10 @@ namespace Modules\Core\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Models\VerificationCode;
-use Modules\Core\Notifications\VerificationCodeNotification;
 use Modules\Core\Repositories\Contracts\VerificationCodeRepositoryInterface;
 
 /**
@@ -32,6 +32,7 @@ final class VerificationCodeService
 
     public function __construct(
         private readonly VerificationCodeRepositoryInterface $verificationCodes,
+        private readonly NotificationDispatchService $notifications,
     ) {}
 
     public function issue(User $user, VerificationCodeType $type, VerificationCodePurpose $purpose): VerificationCode
@@ -49,7 +50,12 @@ final class VerificationCodeService
             'expires_at' => now()->addMinutes(self::TTL_MINUTES),
         ]);
 
-        $user->notify(new VerificationCodeNotification($plainCode, $type, $purpose, self::TTL_MINUTES));
+        $this->notifications->send($user, NotificationEvent::VerificationCodeSent, [
+            'plain_code' => $plainCode,
+            'type' => $type,
+            'purpose' => $purpose,
+            'expires_in_minutes' => self::TTL_MINUTES,
+        ], locale: app()->getLocale());
 
         return $code;
     }

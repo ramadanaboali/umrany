@@ -24,15 +24,29 @@ There is no cookie/session auth path for the API; Sanctum's SPA cookie mode is n
 
 Authorization is enforced via Laravel Policies backed by `spatie/laravel-permission` roles and permissions. Controllers call `$this->authorize(...)` (or `Gate`/policy methods) against permission checks — never raw role-string comparisons like `if ($user->role === 'admin')`. See the root `CLAUDE.md` golden rules.
 
+## Locale
+
+The end-user API (every module, not just Core) resolves a request's locale via
+`Modules\Core\Http\Middleware\SetLocaleFromRequest`, registered globally on the `api` middleware
+group: a matching `Accept-Language` header (`ar`/`en`) → the authenticated user's own stored
+`UserProfile::preferred_language` → the app default. Send `Accept-Language: ar` to get Arabic
+content (e.g. localized notification text); omit it to fall back to your account's own stored
+preference. Separate from the admin-portal's own `App\Http\Middleware\SetAdminLocale` (session/
+`web`-guard only). See `docs/decisions/0029-centralized-notification-service-and-api-locale.md`.
+
 ## Filtering, sorting, and includes
 
-Index endpoints that support filtering, sorting, or eager-loaded relations use `spatie/laravel-query-builder` rather than hand-parsing `$request->get(...)`. Standard query-builder conventions apply, e.g.:
+Every list/index endpoint uses `spatie/laravel-query-builder` rather than hand-parsing `$request->get(...)`, and gets real pagination by default — this is a standing rule (root `CLAUDE.md` Rule 10), not a per-endpoint judgment call. The one named exception is a small, bounded reference/master-data list backing a picker/dropdown UI (`GET /countries`, `.../cities`, `GET /currencies`) — those stay unpaginated but still gain filters. Real examples in this codebase today:
 
 ```
-GET /api/v1/ecommerce/orders?filter[status]=pending&sort=-created_at&include=items,customer
+GET /api/v1/core/me/notifications?filter[read]=false&filter[type]=AccountSuspended&per_page=20
+GET /api/v1/core/auth/sessions?filter[device_name]=iphone
+GET /api/v1/core/countries?filter[search]=saudi
 ```
 
-Each endpoint's controller/Action declares its own allowed filters, sorts, and includes — consult the endpoint's `/docs` entry (below) for what's supported. Note: `spatie/laravel-query-builder`'s `filter[...]`/`sort`/`include` query parameters aren't auto-documented by Scramble's OSS tier — a controller adopting `QueryBuilder::for(...)` needs hand-written `#[QueryParameter]` attributes for those to show up in `/docs` (see `docs/decisions/0023-scramble-over-scribe.md`).
+Each endpoint's controller declares its own allowed filters via `QueryBuilder::for(...)->allowedFilters(...)` — consult the endpoint's `/docs` entry (below) for what's supported. `allowedFilters()` is genuinely variadic (`AllowedFilter|string ...$filters`) — pass filters as separate arguments, not a single array literal; the latter is a silent runtime bug, not a style nit (see `docs/decisions/0029-centralized-notification-service-and-api-locale.md`). Note: `spatie/laravel-query-builder`'s `filter[...]`/`sort`/`include` query parameters aren't auto-documented by Scramble's OSS tier — a controller adopting `QueryBuilder::for(...)` needs hand-written `#[QueryParameter]` attributes for those to show up in `/docs` (see `docs/decisions/0023-scramble-over-scribe.md`).
+
+A paginated endpoint returns a Resource collection directly (`SomeResource::collection($paginator)`) as the response — never a hand-built `{data, meta: {...}}` array — so the standard `data`+`links`+`meta` shape below is automatic.
 
 ## Response shapes
 

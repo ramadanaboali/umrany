@@ -113,6 +113,7 @@ Route::prefix('v1/core')->name('core.')->group(function () {
             Route::put('/me/notification-preferences', [NotificationPreferenceController::class, 'update'])->name('me.notification-preferences.update');
 
             Route::get('/me/notifications', [NotificationController::class, 'index'])->name('me.notifications.index');
+            Route::get('/me/notifications/count', [NotificationController::class, 'count'])->name('me.notifications.count');
             Route::put('/me/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('me.notifications.read');
             Route::post('/me/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('me.notifications.read-all');
         });

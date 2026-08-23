@@ -56,12 +56,17 @@ return [
         'permissions_changed' => 'Your permissions have changed —',
         'settings_updated' => 'Settings updated.',
         'settings_logo_removed' => 'Logo removed.',
+        'user_suspended' => 'User account suspended.',
+        'user_reactivated' => 'User account reactivated.',
+        'user_deleted' => 'User account deleted.',
     ],
 
     'confirm' => [
         'delete_admin' => 'Delete this admin?',
         'delete_role' => 'Delete this role?',
         'revoke_sessions' => 'Revoke every active session for this user?',
+        'reactivate_user' => 'Reactivate this user account?',
+        'delete_user' => 'Delete this user account? This cannot be undone from the dashboard.',
     ],
 
     'dashboard' => [
@@ -104,10 +109,23 @@ return [
 
     'permissions' => [
         'title' => 'Permissions',
-        'intro' => 'The permission catalog is defined in code and expands automatically as new admin screens ship. To grant a permission to admins, assign it to a :role instead.',
+        'intro' => 'The permission catalog is defined in code and expands automatically as new admin screens ship. To grant a permission to admins, assign it to a :role_link instead.',
         'role_link' => 'role',
         'resource' => 'Resource',
         'not_applicable' => 'n/a',
+        'resources' => [
+            'admins' => 'Admins',
+            'roles' => 'Roles',
+            'users' => 'Users',
+            'settings' => 'Settings',
+        ],
+        'actions' => [
+            'list' => 'List',
+            'view' => 'View',
+            'create' => 'Create',
+            'update' => 'Update',
+            'delete' => 'Delete',
+        ],
     ],
 
     'users' => [
@@ -126,6 +144,16 @@ return [
         'never' => 'Never',
         'active_sessions' => 'Active sessions',
         'revoke_all_sessions' => 'Revoke all sessions',
+        'suspend' => 'Suspend',
+        'reactivate' => 'Reactivate',
+        'delete' => 'Delete account',
+        'suspension_reason' => 'Suspension reason',
+        'suspended_at' => 'Suspended at',
+        'suspended_by' => 'Suspended by',
+        'suspend_modal_title' => 'Suspend user account',
+        'suspend_reason_label' => 'Reason (visible to the user)',
+        'suspend_confirm' => 'Suspend account',
+        'cancel' => 'Cancel',
     ],
 
     'profile' => [

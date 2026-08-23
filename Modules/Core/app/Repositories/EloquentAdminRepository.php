@@ -44,9 +44,16 @@ final class EloquentAdminRepository implements AdminRepositoryInterface
             ->count();
     }
 
-    public function paginate(int $perPage = 20): LengthAwarePaginator
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator
     {
-        return Admin::query()->excludingSuperAdmins()->with('roles')->orderBy('name')->paginate($perPage);
+        return Admin::query()
+            ->excludingSuperAdmins()
+            ->with('roles')
+            ->when($search, fn ($query) => $query->where(fn ($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")))
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
     public function countRegular(): int

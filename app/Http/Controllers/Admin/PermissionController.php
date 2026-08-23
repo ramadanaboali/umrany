@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -12,7 +14,9 @@ use Spatie\Permission\Models\Permission;
 /**
  * Read-only — the permission catalog itself is code-defined (Modules/Core/database/seeders/
  * PermissionSeeder), not admin-editable. What admins manage is which roles have which
- * permissions (RoleController) and which admins have which roles (AdminController).
+ * permissions (RoleController) and which admins have which roles (AdminController). Deliberately
+ * does not surface which roles hold which permission here — that's `RoleController`'s concern;
+ * this screen is just the catalog's own shape.
  */
 final class PermissionController extends Controller
 {
@@ -25,11 +29,12 @@ final class PermissionController extends Controller
      */
     private const ACTION_ORDER = ['list', 'view', 'create', 'update', 'delete'];
 
-    public function index(): View
+    private const PER_PAGE = 20;
+
+    public function index(Request $request): View
     {
         $permissions = Permission::query()
             ->where('guard_name', 'admin')
-            ->with('roles')
             ->orderBy('name')
             ->get()
             ->groupBy(fn (Permission $permission) => Str::before($permission->name, '.'));
@@ -48,9 +53,30 @@ final class PermissionController extends Controller
             $matrix->flatMap(fn ($resourcePermissions) => $resourcePermissions->keys())->unique()->all(),
         ));
 
+        $search = $request->string('search')->value() ?: null;
+
+        // Paginated by resource row, not by permission — the matrix is small today but every
+        // future business module (Projects/ECommerce/ERP/AI) adds its own resource rows here over
+        // time, so this isn't speculative. In-memory pagination is fine at this scale; there's no
+        // query to paginate, the catalog itself is code-defined and already fully loaded above.
+        $filtered = $search
+            ? $matrix->filter(fn ($resourcePermissions, $resource) => str_contains(Str::lower($resource), Str::lower($search))
+                || str_contains(Str::lower(__('admin.permissions.resources.'.$resource)), Str::lower($search)))
+            : $matrix;
+
+        $page = (int) $request->integer('page', 1);
+        $paged = new LengthAwarePaginator(
+            $filtered->forPage($page, self::PER_PAGE),
+            $filtered->count(),
+            self::PER_PAGE,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+
         return view('admin.permissions.index', [
             'actions' => $actions,
-            'matrix' => $matrix,
+            'matrix' => $paged,
+            'search' => $search,
         ]);
     }
 }

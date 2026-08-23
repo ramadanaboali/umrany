@@ -58,13 +58,49 @@ return new class extends Migration
         if (! $this->indexExists('admins', 'admins_phone_active_unique')) {
             DB::statement('CREATE UNIQUE INDEX admins_phone_active_unique ON admins (phone) WHERE deleted_at IS NULL');
         }
+
+        // users.suspended_by_admin_id (added in create_users_table's own migration, earlier in
+        // timestamp order — before `admins` existed to reference) gets its FK constraint here,
+        // the first point `admins` actually exists. See docs/decisions/0027-admin-user-suspend-
+        // reactivate.md.
+        if (! $this->foreignKeyExists('users', 'users_suspended_by_admin_id_foreign')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->foreign('suspended_by_admin_id', 'users_suspended_by_admin_id_foreign')
+                    ->references('id')->on('admins')->nullOnDelete();
+            });
+
+            // SQLite has no native ALTER TABLE ADD CONSTRAINT — adding a foreign key to an
+            // existing table makes Laravel's SQLite grammar rebuild the whole `users` table
+            // (copy-then-swap), and that rebuild only recreates indexes it tracks via Blueprint,
+            // silently downgrading the raw partial unique indexes created in create_users_table's
+            // migration (`WHERE deleted_at IS NULL`) to plain ones — confirmed directly by
+            // inspecting `sqlite_master` after this ran. Postgres has no such rebuild, so this is
+            // a no-op there; re-asserting them here (drop + recreate, not just an existence guard,
+            // since the plain-downgraded index already exists under the same name) repairs it on
+            // SQLite and is harmless everywhere else.
+            DB::statement('DROP INDEX IF EXISTS users_email_active_unique');
+            DB::statement('DROP INDEX IF EXISTS users_mobile_active_unique');
+            DB::statement('CREATE UNIQUE INDEX users_email_active_unique ON users (email) WHERE deleted_at IS NULL');
+            DB::statement('CREATE UNIQUE INDEX users_mobile_active_unique ON users (mobile) WHERE deleted_at IS NULL');
+        }
     }
 
     public function down(): void
     {
+        // Drop the cross-table FK before dropping `admins` — otherwise the database refuses to
+        // drop a table another table's constraint still references.
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign('users_suspended_by_admin_id_foreign');
+        });
+
         DB::statement('DROP INDEX IF EXISTS admins_email_active_unique');
         DB::statement('DROP INDEX IF EXISTS admins_phone_active_unique');
         Schema::dropIfExists('admins');
+    }
+
+    private function foreignKeyExists(string $table, string $constraintName): bool
+    {
+        return collect(Schema::getForeignKeys($table))->contains(fn (array $fk) => $fk['name'] === $constraintName);
     }
 
     private function indexExists(string $table, string $indexName): bool

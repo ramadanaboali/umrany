@@ -9,6 +9,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -16,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Modules\Core\Enums\AccountType;
+use Modules\Core\Models\Admin;
 use Modules\Core\Models\Provider;
 use Modules\Core\Models\UserDevice;
 use Modules\Core\Models\UserMfaSetting;
@@ -50,6 +52,7 @@ class User extends Authenticatable
             'status' => UserStatus::class,
             'account_types' => 'array',
             'password' => 'hashed',
+            'suspended_at' => 'datetime',
         ];
     }
 
@@ -91,6 +94,17 @@ class User extends Authenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(UserDevice::class);
+    }
+
+    /**
+     * The admin who suspended this account, if it's currently suspended — see
+     * docs/decisions/0027-admin-user-suspend-reactivate.md.
+     *
+     * @return BelongsTo<Admin, $this>
+     */
+    public function suspendedBy(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'suspended_by_admin_id');
     }
 
     /**

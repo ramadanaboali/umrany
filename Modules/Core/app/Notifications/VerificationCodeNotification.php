@@ -38,6 +38,7 @@ final class VerificationCodeNotification extends BaseUserNotification
         private readonly VerificationCodeType $type,
         private readonly VerificationCodePurpose $purpose,
         private readonly int $expiresInMinutes,
+        private readonly string $renderLocale,
     ) {
         // Latency-sensitive — blocks the user's registration/verification/reset flow. Set via
         // onQueue() rather than redeclaring $queue as a typed property: Queueable already
@@ -70,23 +71,21 @@ final class VerificationCodeNotification extends BaseUserNotification
 
     public function toMail(mixed $notifiable): MailMessage
     {
-        $subject = $this->purpose === VerificationCodePurpose::PasswordReset
-            ? 'Your Umrany password reset code'
-            : 'Your Umrany verification code';
+        $variant = $this->purpose === VerificationCodePurpose::PasswordReset ? 'reset' : 'verify';
 
         return (new MailMessage)
-            ->subject($subject)
-            ->greeting($this->purpose === VerificationCodePurpose::PasswordReset ? 'Reset your password' : 'Verify your account')
-            ->line("Your code is: {$this->plainCode}")
-            ->line("This code expires in {$this->expiresInMinutes} minutes and can only be used once.")
-            ->line('If you did not request this, you can safely ignore this message.');
+            ->subject(__("core::notifications.verification_code.{$variant}.subject", [], $this->renderLocale))
+            ->greeting(__("core::notifications.verification_code.{$variant}.greeting", [], $this->renderLocale))
+            ->line(__('core::notifications.verification_code.line_code', ['code' => $this->plainCode], $this->renderLocale))
+            ->line(__('core::notifications.verification_code.line_expires', ['minutes' => $this->expiresInMinutes], $this->renderLocale))
+            ->line(__('core::notifications.verification_code.line_ignore', [], $this->renderLocale));
     }
 
     public function toLoggedSms(mixed $notifiable): string
     {
-        $label = $this->purpose === VerificationCodePurpose::PasswordReset ? 'password reset' : 'verification';
+        $key = $this->purpose === VerificationCodePurpose::PasswordReset ? 'sms_reset' : 'sms_verify';
 
-        return "Umrany {$label} code: {$this->plainCode} (expires in {$this->expiresInMinutes} min)";
+        return __("core::notifications.verification_code.{$key}", ['code' => $this->plainCode, 'minutes' => $this->expiresInMinutes], $this->renderLocale);
     }
 
     /**
@@ -94,6 +93,9 @@ final class VerificationCodeNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'A verification code was sent.', 'purpose' => $this->purpose->value];
+        return [
+            'message' => __('core::notifications.verification_code.in_app', [], $this->renderLocale),
+            'purpose' => $this->purpose->value,
+        ];
     }
 }

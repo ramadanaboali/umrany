@@ -107,22 +107,25 @@ or revoking Super Admin status is a separate, deliberately out-of-band operation
 ## Users screen
 
 `app/Http/Controllers/Admin/UserController` + `Modules\Core\Services\Admin\UserManagementService`
-+ `resources/views/admin/users/{index,show}.blade.php` — a deliberately minimal, read-mostly
-screen over `App\Models\User` (end users), not a full CRUD screen. It exists to let a permitted
-admin see the registered-user population and terminate a user's sessions (e.g. responding to a
-compromised-account report); it does **not** let an admin create, edit, or delete a user — end
-users self-register and self-delete their own accounts (see `docs/decisions/0014-user-soft-
-deletes-and-partial-unique-indexes.md`), so there is no "admin deletes a user" action to build.
++ `resources/views/admin/users/{index,show}.blade.php` — a listing (paginated, searchable by
+name/email/mobile) plus session revocation, suspend/reactivate (with a required reason), and
+deletion, over `App\Models\User` (end users). There is still **no** admin "create a user" action —
+end users self-register (see `docs/decisions/0014-user-soft-deletes-and-partial-unique-
+indexes.md`) — but an admin can now suspend/reactivate/delete an existing one, see
+`docs/decisions/0027-admin-user-suspend-reactivate.md`.
 
-This is why `Modules/Core/config/permissions.php` gives `users.*` only three actions —
-`users.list`, `users.view`, `users.update` — instead of the five-action `list`/`view`/`create`/
-`update`/`delete` pattern every other admin-manageable resource uses (`docs/decisions/0009-
-granular-crud-admin-permissions.md`). This is a deliberate, documented asymmetry, not an
-inconsistency to "fix" by adding `users.create`/`users.delete` permissions that would gate features
-that don't exist. `users.update` currently covers exactly one action: revoking all of a target
-user's sessions (`DELETE /admin/users/{user}/sessions`) — soft-deleted users are excluded from the
-listing automatically (the repository queries through the model, so Eloquent's `SoftDeletes`
-global scope applies with no extra code).
+This is why `Modules/Core/config/permissions.php` gives `users.*` four actions —
+`users.list`, `users.view`, `users.update`, `users.delete` — instead of the five-action
+`list`/`view`/`create`/`update`/`delete` pattern every other admin-manageable resource uses
+(`docs/decisions/0009-granular-crud-admin-permissions.md`); only `users.create` is deliberately
+absent, since there's still no admin "create a user" screen. `users.update` covers session
+revocation (`DELETE /admin/users/{user}/sessions`) and suspend/reactivate (`POST
+/admin/users/{user}/suspend`, `POST /admin/users/{user}/reactivate`); `users.delete` covers
+admin-initiated deletion (`DELETE /admin/users/{user}`, soft — same shape as the end-user's own
+self-service `DELETE /auth/account`, without a password-confirmation step since the admin's
+permission check is the gate). Soft-deleted users are excluded from the listing automatically (the
+repository queries through the model, so Eloquent's `SoftDeletes` global scope applies with no
+extra code).
 
 ## Settings screen
 

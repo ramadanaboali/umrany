@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Requests\Admin\StoreAdminRequest;
 use App\Http\Requests\Admin\UpdateAdminRequest;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -20,10 +21,11 @@ final class AdminController extends Controller
         private readonly AdminManagementService $admins,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.admins.index', [
-            'admins' => $this->admins->paginate(),
+            'admins' => $this->admins->paginate(search: $request->string('search')->value() ?: null),
+            'search' => $request->string('search')->value(),
         ]);
     }
 

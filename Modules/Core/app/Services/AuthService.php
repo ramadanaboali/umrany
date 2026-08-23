@@ -9,18 +9,15 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Core\Contracts\UserCapabilityResolver;
 use Modules\Core\Data\AuthPayload;
+use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Enums\VerificationCodePurpose;
 use Modules\Core\Enums\VerificationCodeType;
 use Modules\Core\Models\Country;
 use Modules\Core\Models\Currency;
-use Modules\Core\Notifications\NewDeviceLoginNotification;
-use Modules\Core\Notifications\PasswordChangedNotification;
-use Modules\Core\Notifications\PasswordResetCompletedNotification;
-use Modules\Core\Notifications\RegistrationCompletedNotification;
-use Modules\Core\Notifications\SuspiciousLoginAttemptNotification;
 use Modules\Core\Repositories\Contracts\ProviderRepositoryInterface;
 use Modules\Core\Repositories\Contracts\UserProfileRepositoryInterface;
 use Modules\Core\Repositories\Contracts\UserRepositoryInterface;
@@ -37,6 +34,7 @@ final class AuthService
         private readonly ProviderRepositoryInterface $providers,
         private readonly UserCapabilityResolver $capabilities,
         private readonly DeviceRecognitionService $devices,
+        private readonly NotificationDispatchService $notifications,
     ) {}
 
     /**
@@ -77,7 +75,12 @@ final class AuthService
 
             $token = $user->createToken('api-token');
 
-            $user->notify(new RegistrationCompletedNotification);
+            // Self-triggered event — the actor is the recipient, so the current request's own
+            // resolved locale (SetLocaleFromRequest) is the right choice here, not left to
+            // NotificationDispatchService's recipient-preference default. Not done for
+            // SuspiciousLoginAttempt (the actor triggering it may not be the account owner) or the
+            // two admin-initiated events (the actor is never the recipient there).
+            $this->notifications->send($user, NotificationEvent::RegistrationCompleted, locale: app()->getLocale());
 
             return $this->buildAuthPayload($user, $token->plainTextToken);
         });
@@ -123,6 +126,26 @@ final class AuthService
         if (! $user->hasVerifiedIdentity()) {
             throw ValidationException::withMessages([
                 'login' => ['Please verify your account before signing in.'],
+            ]);
+        }
+
+        // The account has verified *some* channel (the check above), but the *specific*
+        // identifier just used to log in must itself be verified too — a user who verified their
+        // email but never their mobile must not be able to sign in with that unverified mobile
+        // just because the account is verified overall. Distinct message per channel, since this
+        // is a different, more specific problem than "the account isn't verified at all." See
+        // docs/decisions/0028-channel-specific-login-verification.md.
+        $usedEmail = $user->email !== null && Str::lower($user->email) === Str::lower($login);
+
+        if ($usedEmail && $user->email_verified_at === null) {
+            throw ValidationException::withMessages([
+                'login' => ['This email address is not verified yet. Verify it, or sign in with a verified identifier.'],
+            ]);
+        }
+
+        if (! $usedEmail && $user->mobile_verified_at === null) {
+            throw ValidationException::withMessages([
+                'login' => ['This mobile number is not verified yet. Verify it, or sign in with a verified identifier.'],
             ]);
         }
 
@@ -172,7 +195,11 @@ final class AuthService
         $token = $user->createToken($deviceName !== null && $deviceName !== '' ? $deviceName : 'api-token');
 
         if ($this->devices->recognize($user, $deviceName, $ip, $userAgent)) {
-            $user->notify(new NewDeviceLoginNotification($deviceName, $ip, now()));
+            $this->notifications->send($user, NotificationEvent::NewDeviceLogin, [
+                'device_name' => $deviceName,
+                'ip' => $ip,
+                'logged_in_at' => now(),
+            ], locale: app()->getLocale());
         }
 
         return $this->buildAuthPayload($user, $token->plainTextToken);
@@ -194,7 +221,7 @@ final class AuthService
 
         if ($attempts >= $threshold && ! Cache::has($notifiedKey)) {
             Cache::put($notifiedKey, true, now()->addMinutes($windowMinutes));
-            $user->notify(new SuspiciousLoginAttemptNotification($attempts));
+            $this->notifications->send($user, NotificationEvent::SuspiciousLoginAttempt, ['attempts' => $attempts]);
         }
     }
 
@@ -268,7 +295,7 @@ final class AuthService
         // triggered because the account was compromised.
         $user->tokens()->delete();
 
-        $user->notify(new PasswordResetCompletedNotification);
+        $this->notifications->send($user, NotificationEvent::PasswordResetCompleted, locale: app()->getLocale());
 
         return true;
     }
@@ -293,7 +320,7 @@ final class AuthService
         // @phpstan-ignore nullsafe.neverNull
         $user->tokens()->where('id', '!=', $user->currentAccessToken()?->id)->delete();
 
-        $user->notify(new PasswordChangedNotification);
+        $this->notifications->send($user, NotificationEvent::PasswordChanged, locale: app()->getLocale());
     }
 
     /**

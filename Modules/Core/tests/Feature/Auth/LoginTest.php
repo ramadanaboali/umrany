@@ -24,12 +24,52 @@ class LoginTest extends TestCase
 
     public function test_can_log_in_with_mobile(): void
     {
-        User::factory()->create(['mobile' => '+966500000002', 'password' => 'Secr3tPass']);
+        // mobile_verified_at explicitly set — see docs/decisions/0028-channel-specific-login-
+        // verification.md: the specific identifier used to log in must itself be verified, not
+        // just "the account has verified something."
+        User::factory()->create(['mobile' => '+966500000002', 'mobile_verified_at' => now(), 'password' => 'Secr3tPass']);
 
         $this->postJson('/api/v1/core/auth/login', [
             'login' => '+966500000002',
             'password' => 'Secr3tPass',
         ])->assertOk();
+    }
+
+    /**
+     * Regression test for docs/decisions/0028-channel-specific-login-verification.md — an
+     * account with a verified email but an *unverified* mobile must be rejected, with a distinct
+     * message, when logging in via that unverified mobile — even though the account overall
+     * satisfies hasVerifiedIdentity() (ADR 0026) via its email.
+     */
+    public function test_login_via_an_unverified_mobile_is_rejected_even_if_email_is_verified(): void
+    {
+        User::factory()->create([
+            'email' => 'verified-email@example.com',
+            'mobile' => '+966500000003',
+            'mobile_verified_at' => null,
+            'password' => 'Secr3tPass',
+        ]);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => '+966500000003',
+            'password' => 'Secr3tPass',
+        ])->assertStatus(422)->assertJsonPath('errors.login.0', 'This mobile number is not verified yet. Verify it, or sign in with a verified identifier.');
+    }
+
+    public function test_login_via_an_unverified_email_is_rejected_even_if_mobile_is_verified(): void
+    {
+        User::factory()->create([
+            'email' => 'unverified-email@example.com',
+            'email_verified_at' => null,
+            'mobile' => '+966500000004',
+            'mobile_verified_at' => now(),
+            'password' => 'Secr3tPass',
+        ]);
+
+        $this->postJson('/api/v1/core/auth/login', [
+            'login' => 'unverified-email@example.com',
+            'password' => 'Secr3tPass',
+        ])->assertStatus(422)->assertJsonPath('errors.login.0', 'This email address is not verified yet. Verify it, or sign in with a verified identifier.');
     }
 
     public function test_wrong_password_is_rejected_with_generic_message(): void

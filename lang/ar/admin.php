@@ -56,12 +56,17 @@ return [
         'permissions_changed' => 'لقد تغيّرت صلاحياتك —',
         'settings_updated' => 'تم تحديث الإعدادات.',
         'settings_logo_removed' => 'تم حذف الشعار.',
+        'user_suspended' => 'تم تعليق حساب المستخدم.',
+        'user_reactivated' => 'تمت إعادة تفعيل حساب المستخدم.',
+        'user_deleted' => 'تم حذف حساب المستخدم.',
     ],
 
     'confirm' => [
         'delete_admin' => 'هل تريد حذف هذا المشرف؟',
         'delete_role' => 'هل تريد حذف هذا الدور؟',
         'revoke_sessions' => 'هل تريد إلغاء جميع الجلسات النشطة لهذا المستخدم؟',
+        'reactivate_user' => 'هل تريد إعادة تفعيل حساب هذا المستخدم؟',
+        'delete_user' => 'هل تريد حذف حساب هذا المستخدم؟ لا يمكن التراجع عن هذا من لوحة التحكم.',
     ],
 
     'dashboard' => [
@@ -108,6 +113,19 @@ return [
         'role_link' => 'دور',
         'resource' => 'المورد',
         'not_applicable' => 'غير متاح',
+        'resources' => [
+            'admins' => 'المشرفون',
+            'roles' => 'الأدوار',
+            'users' => 'المستخدمون',
+            'settings' => 'الإعدادات',
+        ],
+        'actions' => [
+            'list' => 'عرض القائمة',
+            'view' => 'عرض',
+            'create' => 'إنشاء',
+            'update' => 'تحديث',
+            'delete' => 'حذف',
+        ],
     ],
 
     'users' => [
@@ -126,6 +144,16 @@ return [
         'never' => 'لم يسجّل الدخول',
         'active_sessions' => 'الجلسات النشطة',
         'revoke_all_sessions' => 'إلغاء جميع الجلسات',
+        'suspend' => 'تعليق',
+        'reactivate' => 'إعادة تفعيل',
+        'delete' => 'حذف الحساب',
+        'suspension_reason' => 'سبب التعليق',
+        'suspended_at' => 'تاريخ التعليق',
+        'suspended_by' => 'تم التعليق من قِبل',
+        'suspend_modal_title' => 'تعليق حساب المستخدم',
+        'suspend_reason_label' => 'السبب (يظهر للمستخدم)',
+        'suspend_confirm' => 'تعليق الحساب',
+        'cancel' => 'إلغاء',
     ],
 
     'profile' => [

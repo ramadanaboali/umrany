@@ -17,8 +17,9 @@ final class PasswordResetCompletedNotification extends BaseUserNotification
 {
     public int $tries = 3;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly string $renderLocale,
+    ) {
         $this->onQueue('core-default');
     }
 
@@ -38,10 +39,10 @@ final class PasswordResetCompletedNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your Umrany password was reset')
-            ->greeting('Password reset')
-            ->line('Your account password was just reset using a verification code.')
-            ->line('If you did not request this, contact support immediately.');
+            ->subject(__('core::notifications.password_reset_completed.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.password_reset_completed.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.password_reset_completed.line_1', [], $this->renderLocale))
+            ->line(__('core::notifications.password_reset_completed.line_2', [], $this->renderLocale));
     }
 
     /**
@@ -49,6 +50,6 @@ final class PasswordResetCompletedNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'Your password was reset.'];
+        return ['message' => __('core::notifications.password_reset_completed.in_app', [], $this->renderLocale)];
     }
 }

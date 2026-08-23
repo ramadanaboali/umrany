@@ -20,6 +20,7 @@ final class SuspiciousLoginAttemptNotification extends BaseUserNotification
 
     public function __construct(
         private readonly int $attempts,
+        private readonly string $renderLocale,
     ) {
         $this->onQueue('core-high');
     }
@@ -40,10 +41,10 @@ final class SuspiciousLoginAttemptNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Suspicious sign-in activity on your Umrany account')
-            ->greeting('Multiple failed sign-in attempts')
-            ->line("There have been {$this->attempts} failed sign-in attempts on your account recently.")
-            ->line('If this was not you, consider changing your password.');
+            ->subject(__('core::notifications.suspicious_login_attempt.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.suspicious_login_attempt.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.suspicious_login_attempt.line_1', ['attempts' => $this->attempts], $this->renderLocale))
+            ->line(__('core::notifications.suspicious_login_attempt.line_2', [], $this->renderLocale));
     }
 
     /**
@@ -51,6 +52,9 @@ final class SuspiciousLoginAttemptNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => "There have been {$this->attempts} failed sign-in attempts on your account.", 'attempts' => $this->attempts];
+        return [
+            'message' => __('core::notifications.suspicious_login_attempt.in_app', ['attempts' => $this->attempts], $this->renderLocale),
+            'attempts' => $this->attempts,
+        ];
     }
 }

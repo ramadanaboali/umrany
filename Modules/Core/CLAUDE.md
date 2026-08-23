@@ -181,7 +181,17 @@ reconsider the design (likely needs a new Contract or Event instead).
   authenticated `resend-code`/`verify` endpoints as a recovery path for a lost/expired
   registration session, `POST /auth/resend-verification` and `.../auth/verify-account` are public
   (unauthenticated) equivalents that exist specifically so verification is never unreachable —
-  don't remove them without an equivalent replacement.
+  don't remove them without an equivalent replacement. Beyond that account-wide check, login also
+  requires the *specific* identifier just typed (email or mobile) to itself be verified — a
+  verified email doesn't let you log in with an unverified mobile, symmetric both ways, distinct
+  message per case — see `docs/decisions/0028-channel-specific-login-verification.md`. Password
+  reset/forgot-password are explicitly not subject to this second check (the OTP re-proves channel
+  ownership at consumption time regardless of prior verification).
+  **Suspend/reactivate/delete**: an admin can suspend a user with a required reason
+  (`users.update` permission, immediately revokes sessions, dispatches
+  `AccountSuspendedNotification` — its first real trigger site), reactivate
+  (`AccountActivatedNotification`), or delete (`users.delete`, soft — same shape as the end-user's
+  own `DELETE /auth/account`). See `docs/decisions/0027-admin-user-suspend-reactivate.md`.
 - **TOTP MFA** (`MfaController`, `Services/MfaService`, `Models/UserMfaSetting`,
   `Models/MfaRecoveryCode`): opt-in, default disabled, enrollable at registration or via profile;
   never enforced until a confirm step succeeds. A confirmed setting switches login into a two-step
@@ -227,9 +237,22 @@ reconsider the design (likely needs a new Contract or Event instead).
   concrete notification checks `Services/NotificationPreferenceService::allows()` in its `via()` —
   see `docs/decisions/0017-notification-preferences-schema.md`. New-device-login detection is a
   dedicated `Models/UserDevice` table + `Services/DeviceRecognitionService`, not inferred from
-  Sanctum tokens — see `docs/decisions/0018-user-device-recognition.md`. Two of the 8 events
-  (`account_suspended`/`account_activated`) have notification classes but no trigger site yet — no
-  admin action changes a user's status today; not built speculatively (Rule 0).
+  Sanctum tokens — see `docs/decisions/0018-user-device-recognition.md`. All 8 events have both a
+  notification class and a real trigger site (`account_suspended`/`account_activated` fire from
+  `Services/Admin/UserManagementService::suspend()`/`reactivate()`).
+  **Dispatch goes through `Services/NotificationDispatchService::send($notifiable, $event, $data,
+  $channels, $locale)`**, never `$notifiable->notify(new XNotification(...))` directly, for any of
+  the 8 `NotificationEvent`-mapped classes — it resolves locale (explicit param → recipient's own
+  stored `UserProfile::preferred_language` → app default) and narrows channels (never widens) via
+  `BaseUserNotification::restrictChannelsTo()`. `MfaStateChangedNotification`/
+  `AdminResetPasswordNotification` have no `NotificationEvent` case and stay on direct `->notify()`
+  calls. Localized text lives in `lang/{en,ar}/notifications.php`, one key per event; every
+  notification's `toMail()`/`toArray()` renders via `__('core::notifications.<event>.<key>', [...],
+  $this->renderLocale)` — see `docs/decisions/0029-centralized-notification-service-and-api-
+  locale.md`. The end-user API's own locale (`Http/Middleware/SetLocaleFromRequest`, `Accept-
+  Language` header → the authenticated user's stored preference → app default, registered
+  globally on the `api` middleware group) is what self-triggered events (register, verify,
+  password change/reset, new-device-login) pass through as that explicit `$locale` param.
 - **Admin/RBAC** (`Models/Admin`, `spatie/laravel-permission` on the `admin` guard): see
   `docs/architecture/admin-portal.md` for the full reference — the UI lives at the application
   root (`app/Http/Controllers/Admin`), not in this module, but the `Admin` model and the

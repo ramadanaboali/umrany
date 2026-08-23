@@ -19,9 +19,9 @@ class NotificationListTest extends TestCase
 
         // Notification::fake() is deliberately NOT active here — these actually persist to the
         // notifications table via the real "database" channel.
-        $user->notify(new RegistrationCompletedNotification);
-        $user->notify(new PasswordChangedNotification);
-        $user->notify(new NewDeviceLoginNotification('My Phone', '127.0.0.1', Carbon::now()));
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
+        $user->notify(new NewDeviceLoginNotification('My Phone', '127.0.0.1', Carbon::now(), 'en'));
 
         // Mark one specific row read by type rather than by creation-order querying — all three
         // notifications land in the same second, so relying on latest()/oldest() to disambiguate
@@ -35,7 +35,8 @@ class NotificationListTest extends TestCase
             ->assertOk()
             ->assertJsonStructure([
                 'data' => [['id', 'type', 'data', 'read_at', 'created_at']],
-                'meta' => ['current_page', 'last_page', 'total'],
+                'links' => ['first', 'last', 'prev', 'next'],
+                'meta' => ['current_page', 'from', 'last_page', 'path', 'per_page', 'to', 'total'],
             ]);
 
         $data = $response->json('data');
@@ -55,8 +56,8 @@ class NotificationListTest extends TestCase
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
 
-        $user->notify(new RegistrationCompletedNotification);
-        $user->notify(new PasswordChangedNotification);
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
 
         // Select each row by its notification type rather than by creation-order querying — both
         // rows can land in the same second, so first()/last() on created_at order alone would be
@@ -78,9 +79,9 @@ class NotificationListTest extends TestCase
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
 
-        $user->notify(new RegistrationCompletedNotification);
-        $user->notify(new PasswordChangedNotification);
-        $user->notify(new NewDeviceLoginNotification('My Phone', '127.0.0.1', Carbon::now()));
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
+        $user->notify(new NewDeviceLoginNotification('My Phone', '127.0.0.1', Carbon::now(), 'en'));
 
         $token = $user->createToken('test')->plainTextToken;
 
@@ -90,5 +91,54 @@ class NotificationListTest extends TestCase
 
         $this->assertSame(0, $user->unreadNotifications()->count());
         $this->assertSame(3, $user->notifications()->whereNotNull('read_at')->count());
+    }
+
+    public function test_count_endpoint_reports_total_and_unread(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
+        $user->notifications()->where('type', RegistrationCompletedNotification::class)->firstOrFail()->markAsRead();
+
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/core/me/notifications/count')
+            ->assertOk()
+            ->assertJson(['data' => ['total' => 2, 'unread' => 1]]);
+    }
+
+    public function test_filter_by_read_returns_only_unread_rows(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
+        $user->notifications()->where('type', RegistrationCompletedNotification::class)->firstOrFail()->markAsRead();
+
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/core/me/notifications?filter[read]=false')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.type', 'PasswordChangedNotification');
+    }
+
+    public function test_filter_by_type_returns_only_matching_notification_class(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+
+        $user->notify(new RegistrationCompletedNotification('en'));
+        $user->notify(new PasswordChangedNotification('en'));
+
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/core/me/notifications?filter[type]=PasswordChanged')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.type', 'PasswordChangedNotification');
     }
 }

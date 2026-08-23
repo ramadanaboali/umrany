@@ -51,3 +51,17 @@ correct it, they just silently never receive a reset link.
   usability cost of staying generic here was real while the enumeration risk is low.
 - If the admin dashboard is ever exposed to a wider or less-trusted audience, revisit this — the
   end-user endpoint's enumeration-safe pattern is the template to fall back to.
+
+## Superseding note (end-user side)
+
+The "explicitly not touched" line above no longer holds. On direct, explicit product instruction,
+the end-user API's `POST /api/v1/core/auth/forgot-password` was changed to also reveal account
+existence — `Modules\Core\Http\Requests\Auth\ForgotPasswordRequest` now rejects an unknown
+(or soft-deleted) `login` with "No account exists with that email or mobile number." instead of
+the previous always-generic "If that account exists, a reset code has been sent." response. This
+was the user's own call, not a re-derivation of the admin-side rationale above (which was
+specifically about a small, non-self-registered population) — the end-user population doesn't
+share that rationale, so this is a deliberate acceptance of the enumeration tradeoff this ADR
+originally kept scoped to the admin side only. `Modules\Core\Http\Controllers\AuthController::
+resetPassword()` (consuming the code) is unaffected and stays enumeration-safe — this reversal is
+forgot-password-request only, not the whole reset flow.

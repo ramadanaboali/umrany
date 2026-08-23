@@ -5,10 +5,11 @@
 @section('content')
     <div class="card">
         <div class="card-header">
-            <form method="GET" action="{{ route('admin.users.index') }}" class="d-flex gap-2">
-                <input type="text" name="search" value="{{ $search }}" placeholder="{{ __('admin.users.search_placeholder') }}"
-                    class="form-control" style="max-width: 320px;">
-                <button type="submit" class="btn btn-secondary">{{ __('admin.common.search') }}</button>
+            <form method="GET" action="{{ route('admin.users.index') }}">
+                <div class="input-group input-group-sm" style="max-width: 320px;">
+                    <span class="input-group-text bg-body"><i class="ri-search-line"></i></span>
+                    <input type="text" name="search" value="{{ $search }}" placeholder="{{ __('admin.users.search_placeholder') }}" class="form-control">
+                </div>
             </form>
         </div>
         <div class="card-body">
@@ -22,11 +23,11 @@
                             <th>{{ __('admin.users.status') }}</th>
                             <th>{{ __('admin.users.verified') }}</th>
                             <th>{{ __('admin.users.sessions') }}</th>
-                            <th>{{ __('admin.common.actions') }}</th>
+                            <th class="text-end">{{ __('admin.common.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($users as $user)
+                        @forelse ($users as $user)
                             <tr>
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->email ?? __('admin.common.none') }}</td>
@@ -46,13 +47,21 @@
                                     </span>
                                 </td>
                                 <td>{{ $user->tokens_count }}</td>
-                                <td>
+                                <td class="text-end">
                                     @can('users.view')
-                                        <a href="{{ route('admin.users.show', $user) }}" class="text-muted">{{ __('admin.users.view') }}</a>
+                                        <a href="{{ route('admin.users.show', $user) }}"
+                                            class="btn btn-sm btn-soft-primary rounded-circle" style="width: 32px; height: 32px;"
+                                            data-bs-toggle="tooltip" title="{{ __('admin.users.view') }}">
+                                            <i class="ri-eye-line align-middle"></i>
+                                        </a>
                                     @endcan
                                 </td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">{{ __('admin.common.none') }}</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>

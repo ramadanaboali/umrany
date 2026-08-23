@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Repositories\Contracts;
 
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Spatie\Permission\Models\Role;
 
 /**
@@ -16,9 +16,9 @@ interface RoleRepositoryInterface
     public function findById(int $id): ?Role;
 
     /**
-     * @return Collection<int, Role>
+     * `$search` matches the role name.
      */
-    public function allWithPermissions(): Collection;
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator;
 
     /**
      * @param  array<int, string>  $permissionNames

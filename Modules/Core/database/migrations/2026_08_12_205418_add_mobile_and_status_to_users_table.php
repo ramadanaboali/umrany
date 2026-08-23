@@ -65,6 +65,18 @@ return new class extends Migration
                 // values with no need to query "which users chose X" at scale.
                 $table->json('account_types')->nullable()->after('status');
             }
+
+            if (! Schema::hasColumn('users', 'suspension_reason')) {
+                // Admin-supplied, overwritten on each new suspension — not a history log (no
+                // separate audit table, Rule 0: not asked for). Reactivating nulls all three of
+                // these out again. See docs/decisions/0027-admin-user-suspend-reactivate.md.
+                // `suspended_by_admin_id` is a plain column here (no FK constraint) because this
+                // migration runs *before* `admins` is created (timestamp order) — the FK itself is
+                // added in create_admins_table.php once that table exists to reference.
+                $table->text('suspension_reason')->nullable();
+                $table->timestamp('suspended_at')->nullable();
+                $table->unsignedBigInteger('suspended_by_admin_id')->nullable();
+            }
         });
 
         // Separate statement: an index add inside the same hasColumn-guarded block above would
@@ -132,6 +144,9 @@ return new class extends Migration
                 'last_login_at',
                 'last_login_ip',
                 'deleted_at',
+                'suspension_reason',
+                'suspended_at',
+                'suspended_by_admin_id',
             ]);
         });
 

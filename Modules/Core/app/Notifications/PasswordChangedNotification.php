@@ -19,8 +19,9 @@ final class PasswordChangedNotification extends BaseUserNotification
 {
     public int $tries = 3;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly string $renderLocale,
+    ) {
         $this->onQueue('core-default');
     }
 
@@ -40,10 +41,10 @@ final class PasswordChangedNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your Umrany password was changed')
-            ->greeting('Password changed')
-            ->line('This is a confirmation that your account password was just changed.')
-            ->line('If you did not make this change, contact support immediately.');
+            ->subject(__('core::notifications.password_changed.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.password_changed.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.password_changed.line_1', [], $this->renderLocale))
+            ->line(__('core::notifications.password_changed.line_2', [], $this->renderLocale));
     }
 
     /**
@@ -51,6 +52,6 @@ final class PasswordChangedNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'Your password was changed.'];
+        return ['message' => __('core::notifications.password_changed.in_app', [], $this->renderLocale)];
     }
 }

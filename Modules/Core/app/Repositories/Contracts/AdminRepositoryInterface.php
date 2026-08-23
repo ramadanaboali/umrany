@@ -31,9 +31,9 @@ interface AdminRepositoryInterface
 
     /**
      * Regular (non-Super-Admin) admin listing — Super Admins are excluded, see
-     * Admin::excludingSuperAdmins().
+     * Admin::excludingSuperAdmins(). `$search` matches name/email.
      */
-    public function paginate(int $perPage = 20): LengthAwarePaginator;
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator;
 
     /**
      * Regular (non-Super-Admin) admin count — used for the dashboard tile.

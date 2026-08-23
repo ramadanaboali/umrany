@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Services\Admin;
 
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
 use Modules\Core\Events\AdminPermissionsChanged;
 use Modules\Core\Repositories\Contracts\RoleRepositoryInterface;
@@ -16,12 +16,9 @@ final class RoleManagementService
         private readonly RoleRepositoryInterface $roles,
     ) {}
 
-    /**
-     * @return Collection<int, Role>
-     */
-    public function all(): Collection
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator
     {
-        return $this->roles->allWithPermissions();
+        return $this->roles->paginate($perPage, $search);
     }
 
     /**

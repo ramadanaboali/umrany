@@ -203,6 +203,38 @@ original pattern and its later extension).
   versioned. Treat a failure there as a hard blocker to fix the route, never as a test to loosen or
   delete.
 
+## Rule 10 — every list endpoint gets pagination and filters by default
+
+Made permanent after a system-wide pass found `spatie/laravel-query-builder` sitting in
+`composer.json` and documented in `docs/api/conventions.md` as "the" filtering convention, yet
+completely unused anywhere in real code — see `docs/decisions/0029-centralized-notification-
+service-and-api-locale.md`.
+
+- **Every new or modified list/index API endpoint uses `Spatie\QueryBuilder\QueryBuilder`
+  (`QueryBuilder::for(...)->allowedFilters(...)`) and gets real pagination (`->paginate(...)`) by
+  default.** Filters are passed to `allowedFilters()` as separate variadic arguments, never as a
+  single array literal (`->allowedFilters($f1, $f2)`, not `->allowedFilters([$f1, $f2])`) — the
+  method is genuinely variadic, and passing an array where a spread was needed is a silent runtime
+  bug, not just a style nit (confirmed directly: Larastan's `argument.type` check catches it, but
+  only because the signature is typed — reasoning about it by eye is easy to get wrong).
+- **The only exception is a provably small, bounded reference/master-data list meant to back a
+  picker/dropdown UI** — the existing `GET /countries`, `.../cities`, `GET /currencies` are the
+  named precedent. Those stay unpaginated but still gain filters (typically a `filter[search]`
+  partial-match). Reaching for this exception must be a deliberate, stated call each time
+  ("this list is a bounded picker, not open-ended browsing"), never a default just because
+  pagination feels like more work.
+- **A new paginated response returns a Resource collection directly**
+  (`SomeResource::collection($paginator)`) **as the response, never a hand-built `{data, meta:
+  {...}}` array.** Laravel's own `AnonymousResourceCollection` already produces the full standard
+  `data`+`links`+`meta` shape `docs/api/conventions.md` documents when wrapping a
+  `LengthAwarePaginator` this way — a hand-built `meta` array reliably ends up with fewer than the
+  standard 6 keys and no `links` at all (confirmed directly: this had already happened to
+  `GET /me/notifications` before this rule existed).
+- Every `filter[...]`/`per_page` query param on a touched endpoint gets a `#[QueryParameter(...)]`
+  Scramble attribute — `docs/decisions/0023-scramble-over-scribe.md` already notes these need
+  hand-written attributes to appear in generated docs at all; this was true before this rule, just
+  never exercised since nothing used the query builder yet.
+
 ## Commands (everything runs through Docker)
 
 ```bash

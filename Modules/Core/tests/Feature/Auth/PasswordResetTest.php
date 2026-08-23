@@ -15,11 +15,26 @@ use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
 {
-    public function test_forgot_password_always_returns_generic_success_even_for_unknown_login(): void
+    /**
+     * Deliberate reversal, per explicit product decision — see docs/decisions/0011-admin-forgot-
+     * password-reveals-account-existence.md's superseding note. This endpoint now rejects an
+     * unknown login instead of returning the previous generic success message.
+     */
+    public function test_forgot_password_rejects_an_unknown_login_by_name(): void
     {
         $this->postJson('/api/v1/core/auth/forgot-password', ['login' => 'nobody@example.com'])
-            ->assertOk()
-            ->assertJsonPath('message', 'If that account exists, a reset code has been sent.');
+            ->assertStatus(422)
+            ->assertJsonPath('errors.login.0', 'No account exists with that email or mobile number.');
+    }
+
+    public function test_forgot_password_rejects_a_soft_deleted_accounts_identifier(): void
+    {
+        $user = User::factory()->create(['email' => 'deleted@example.com']);
+        $user->delete();
+
+        $this->postJson('/api/v1/core/auth/forgot-password', ['login' => 'deleted@example.com'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.login.0', 'No account exists with that email or mobile number.');
     }
 
     public function test_forgot_password_issues_a_reset_code_for_a_real_account(): void

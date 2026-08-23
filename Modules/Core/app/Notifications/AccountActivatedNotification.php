@@ -8,16 +8,17 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Modules\Core\Enums\NotificationEvent;
 
 /**
- * No dispatch site exists yet — see AccountSuspendedNotification's docblock; the same "no admin
- * action mutates status yet" gap applies here (this is the un-suspend counterpart). Not
- * mandatory — see NotificationEvent::isMandatory().
+ * Dispatched from Modules\Core\Services\Admin\UserManagementService::reactivate() — the
+ * un-suspend counterpart to AccountSuspendedNotification, see docs/decisions/0027-admin-user-
+ * suspend-reactivate.md. Not mandatory — see NotificationEvent::isMandatory().
  */
 final class AccountActivatedNotification extends BaseUserNotification
 {
     public int $tries = 3;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly string $renderLocale,
+    ) {
         $this->onQueue('core-default');
     }
 
@@ -37,9 +38,9 @@ final class AccountActivatedNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your Umrany account has been reactivated')
-            ->greeting('Account reactivated')
-            ->line('Your account has been reactivated and you can sign in again.');
+            ->subject(__('core::notifications.account_activated.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.account_activated.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.account_activated.line_1', [], $this->renderLocale));
     }
 
     /**
@@ -47,6 +48,6 @@ final class AccountActivatedNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'Your account has been reactivated.'];
+        return ['message' => __('core::notifications.account_activated.in_app', [], $this->renderLocale)];
     }
 }

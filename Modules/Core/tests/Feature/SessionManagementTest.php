@@ -97,4 +97,32 @@ class SessionManagementTest extends TestCase
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
+
+    public function test_listing_is_paginated_with_the_standard_envelope_shape(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('device-1');
+
+        $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken)
+            ->getJson('/api/v1/core/auth/sessions')
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => [['id', 'device_name', 'last_used_at', 'created_at', 'expires_at', 'is_current']],
+                'links' => ['first', 'last', 'prev', 'next'],
+                'meta' => ['current_page', 'from', 'last_page', 'path', 'per_page', 'to', 'total'],
+            ]);
+    }
+
+    public function test_filter_by_device_name_returns_only_matching_sessions(): void
+    {
+        $user = User::factory()->create();
+        $current = $user->createToken('current-device');
+        $user->createToken('iphone-15');
+
+        $this->withHeader('Authorization', 'Bearer '.$current->plainTextToken)
+            ->getJson('/api/v1/core/auth/sessions?filter[device_name]=iphone')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.device_name', 'iphone-15');
+    }
 }

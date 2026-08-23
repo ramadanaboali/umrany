@@ -98,8 +98,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
         });
 
-        // Deliberately minimal — read-only listing + session revocation, no create/delete (end
-        // users self-register/self-delete). See Modules\Core\Services\Admin\UserManagementService.
+        // End users self-register — there is still no admin "create a user" action — but an
+        // admin can suspend/reactivate/delete a user's account. See
+        // Modules\Core\Services\Admin\UserManagementService and docs/decisions/0027-admin-user-
+        // suspend-reactivate.md.
         Route::middleware('can:users.list')->group(function () {
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
         });
@@ -108,6 +110,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
         Route::middleware('can:users.update')->group(function () {
             Route::delete('/users/{user}/sessions', [UserController::class, 'destroySessions'])->name('users.sessions.destroy');
+            Route::post('/users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+            Route::post('/users/{user}/reactivate', [UserController::class, 'reactivate'])->name('users.reactivate');
+        });
+        Route::middleware('can:users.delete')->group(function () {
+            Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         });
 
         // Singleton config row (Modules\Core\Models\SiteSetting::current()) — 2-action permission

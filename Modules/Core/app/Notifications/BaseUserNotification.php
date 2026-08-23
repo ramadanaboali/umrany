@@ -27,12 +27,33 @@ abstract class BaseUserNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * @var array<int, NotificationChannel>|null
+     */
+    private ?array $channelRestriction = null;
+
     abstract public function event(): NotificationEvent;
 
     /**
      * @return array<string, mixed>
      */
     abstract public function toArray(mixed $notifiable): array;
+
+    /**
+     * Narrows (never widens) the channels via() will return — set by
+     * NotificationDispatchService when a caller passes an explicit $channels list. Intersected
+     * with, not exempt from, the preference-computed set below: a caller can say "only email for
+     * this one," never force a channel the recipient explicitly opted out of for a non-mandatory
+     * event. See docs/decisions/0029-centralized-notification-service-and-api-locale.md.
+     *
+     * @param  array<int, NotificationChannel>  $channels
+     */
+    public function restrictChannelsTo(array $channels): static
+    {
+        $this->channelRestriction = $channels;
+
+        return $this;
+    }
 
     /**
      * @return array<int, string>
@@ -42,14 +63,22 @@ abstract class BaseUserNotification extends Notification implements ShouldQueue
         $preferences = app(NotificationPreferenceService::class);
         $channels = [];
 
-        if ($preferences->allows($notifiable, $this->event(), NotificationChannel::InApp)) {
+        if ($this->channelAllowed(NotificationChannel::InApp)
+            && $preferences->allows($notifiable, $this->event(), NotificationChannel::InApp)) {
             $channels[] = 'database';
         }
 
-        if ($notifiable->email !== null && $preferences->allows($notifiable, $this->event(), NotificationChannel::Email)) {
+        if ($notifiable->email !== null
+            && $this->channelAllowed(NotificationChannel::Email)
+            && $preferences->allows($notifiable, $this->event(), NotificationChannel::Email)) {
             $channels[] = 'mail';
         }
 
         return $channels;
+    }
+
+    private function channelAllowed(NotificationChannel $channel): bool
+    {
+        return $this->channelRestriction === null || in_array($channel, $this->channelRestriction, true);
     }
 }

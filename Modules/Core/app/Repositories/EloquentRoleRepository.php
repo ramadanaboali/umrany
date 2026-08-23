@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Core\Repositories;
 
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Core\Repositories\Contracts\RoleRepositoryInterface;
 use Spatie\Permission\Models\Role;
 
@@ -19,9 +19,14 @@ final class EloquentRoleRepository implements RoleRepositoryInterface
         return $role && $role->guard_name === self::GUARD ? $role : null;
     }
 
-    public function allWithPermissions(): Collection
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator
     {
-        return Role::query()->where('guard_name', self::GUARD)->with('permissions')->orderBy('name')->get();
+        return Role::query()
+            ->where('guard_name', self::GUARD)
+            ->with('permissions')
+            ->when($search, fn ($query) => $query->where('name', 'like', "%{$search}%"))
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
     public function create(string $name, array $permissionNames = []): Role

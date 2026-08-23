@@ -237,19 +237,24 @@ final class AuthController extends Controller
     /**
      * Forgot password
      *
-     * Always responds with a generic success message whether or not the identifier matches an
-     * account, so this endpoint can never be used to enumerate registered emails/mobiles.
+     * Deliberately reveals whether the identifier matches a real account — `ForgotPasswordRequest`
+     * rejects an unknown login before this runs. See docs/decisions/0011-admin-forgot-password-
+     * reveals-account-existence.md's superseding note.
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $login = $request->string('login')->value();
         $user = $this->findUserByLogin($login);
 
-        if ($user !== null) {
-            $this->auth->requestPasswordReset($user, $this->channelFor($user, $login));
+        if ($user === null) {
+            // Validation already guarantees a match — this is belt-and-braces against a race
+            // between validation and this line, not a real expected path.
+            return response()->json(['message' => 'No account exists with that email or mobile number.'], 422);
         }
 
-        return response()->json(['message' => 'If that account exists, a reset code has been sent.']);
+        $this->auth->requestPasswordReset($user, $this->channelFor($user, $login));
+
+        return response()->json(['message' => 'A reset code has been sent.']);
     }
 
     /**

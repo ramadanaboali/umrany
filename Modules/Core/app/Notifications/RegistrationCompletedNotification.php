@@ -11,8 +11,9 @@ final class RegistrationCompletedNotification extends BaseUserNotification
 {
     public int $tries = 3;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly string $renderLocale,
+    ) {
         $this->onQueue('core-default');
     }
 
@@ -32,10 +33,10 @@ final class RegistrationCompletedNotification extends BaseUserNotification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Welcome to Umrany')
-            ->greeting('Welcome to Umrany!')
-            ->line('Your account has been created.')
-            ->line('Verify your email or mobile number to unlock the rest of the platform.');
+            ->subject(__('core::notifications.registration_completed.subject', [], $this->renderLocale))
+            ->greeting(__('core::notifications.registration_completed.greeting', [], $this->renderLocale))
+            ->line(__('core::notifications.registration_completed.line_1', [], $this->renderLocale))
+            ->line(__('core::notifications.registration_completed.line_2', [], $this->renderLocale));
     }
 
     /**
@@ -43,6 +44,6 @@ final class RegistrationCompletedNotification extends BaseUserNotification
      */
     public function toArray(mixed $notifiable): array
     {
-        return ['message' => 'Welcome to Umrany — your account has been created.'];
+        return ['message' => __('core::notifications.registration_completed.in_app', [], $this->renderLocale)];
     }
 }

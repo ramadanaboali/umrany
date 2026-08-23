@@ -27,9 +27,9 @@ final class AdminManagementService
      * Admins visible in the dashboard listing — always excludes Super Admins, see
      * Admin::excludingSuperAdmins() and docs/architecture/admin-portal.md.
      */
-    public function paginate(int $perPage = 20): LengthAwarePaginator
+    public function paginate(int $perPage = 20, ?string $search = null): LengthAwarePaginator
     {
-        return $this->admins->paginate($perPage);
+        return $this->admins->paginate($perPage, $search);
     }
 
     public function countRegular(): int

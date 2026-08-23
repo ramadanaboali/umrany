@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Modules\Core\Http\Controllers;
 
 use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
 use Modules\Core\Http\Resources\SessionResource;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
 
 /**
  * FR-AUTH-004: manage active sessions across devices. A "session" here is a Sanctum personal
@@ -19,23 +23,31 @@ use Modules\Core\Http\Resources\SessionResource;
 #[Group('Core / Auth', weight: 1)]
 final class SessionController extends Controller
 {
+    private const MAX_PER_PAGE = 100;
+
     /**
      * List active sessions
      *
      * Excludes any token already past config('sanctum.expiration') — Sanctum's guard already
      * rejects those, so a raw token-table listing without this filter would show "active"
-     * sessions that can no longer actually authenticate.
+     * sessions that can no longer actually authenticate. Paginated — see CLAUDE.md Rule 10.
      */
-    public function index(Request $request): JsonResponse
+    #[QueryParameter('filter[device_name]', description: 'Partial match against the session/device name.', type: 'string')]
+    #[QueryParameter('per_page', description: 'Page size, 1-100.', type: 'integer', default: 20)]
+    public function index(Request $request): AnonymousResourceCollection
     {
-        $tokens = $request->user()->tokens()->latest();
+        $tokens = QueryBuilder::for($request->user()->tokens())
+            ->allowedFilters(AllowedFilter::partial('device_name', 'name'))
+            ->latest();
 
         $expiration = config('sanctum.expiration');
         if ($expiration !== null) {
             $tokens->where('created_at', '>', now()->subMinutes((int) $expiration));
         }
 
-        return response()->json(['data' => SessionResource::collection($tokens->get())]);
+        $perPage = min(max($request->integer('per_page', 20), 1), self::MAX_PER_PAGE);
+
+        return SessionResource::collection($tokens->paginate($perPage));
     }
 
     /**
