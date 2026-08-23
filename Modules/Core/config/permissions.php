@@ -28,8 +28,9 @@ return [
         'roles.delete',
         // Deliberately 4 actions, not the usual 5 (docs/decisions/0009-granular-crud-admin-
         // permissions.md's convention) — end users still self-register, so there is no admin
-        // "create a user" screen to gate. `users.update` covers session revocation and
-        // suspend/reactivate; `users.delete` covers admin-initiated account deletion. See
+        // "create a user" screen to gate. `users.update` covers session revocation,
+        // suspend/reactivate, and editing a user's own profile fields (name/email/mobile/
+        // address/country/city); `users.delete` covers admin-initiated account deletion. See
         // docs/decisions/0027-admin-user-suspend-reactivate.md.
         'users.list',
         'users.view',

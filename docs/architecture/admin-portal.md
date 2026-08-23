@@ -107,21 +107,27 @@ or revoking Super Admin status is a separate, deliberately out-of-band operation
 ## Users screen
 
 `app/Http/Controllers/Admin/UserController` + `Modules\Core\Services\Admin\UserManagementService`
-+ `resources/views/admin/users/{index,show}.blade.php` — a listing (paginated, searchable by
-name/email/mobile) plus session revocation, suspend/reactivate (with a required reason), and
-deletion, over `App\Models\User` (end users). There is still **no** admin "create a user" action —
-end users self-register (see `docs/decisions/0014-user-soft-deletes-and-partial-unique-
-indexes.md`) — but an admin can now suspend/reactivate/delete an existing one, see
-`docs/decisions/0027-admin-user-suspend-reactivate.md`.
++ `Modules\Core\Services\ProfileService` + `resources/views/admin/users/{index,show}.blade.php` —
+a listing (paginated, searchable by name/email/mobile) plus session revocation, suspend/reactivate
+(with a required reason), profile editing, and deletion, over `App\Models\User` (end users). There
+is still **no** admin "create a user" action — end users self-register (see
+`docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md`) — but an admin can now
+suspend/reactivate/delete an existing one, see `docs/decisions/0027-admin-user-suspend-
+reactivate.md`.
 
 This is why `Modules/Core/config/permissions.php` gives `users.*` four actions —
 `users.list`, `users.view`, `users.update`, `users.delete` — instead of the five-action
 `list`/`view`/`create`/`update`/`delete` pattern every other admin-manageable resource uses
 (`docs/decisions/0009-granular-crud-admin-permissions.md`); only `users.create` is deliberately
 absent, since there's still no admin "create a user" screen. `users.update` covers session
-revocation (`DELETE /admin/users/{user}/sessions`) and suspend/reactivate (`POST
-/admin/users/{user}/suspend`, `POST /admin/users/{user}/reactivate`); `users.delete` covers
-admin-initiated deletion (`DELETE /admin/users/{user}`, soft — same shape as the end-user's own
+revocation (`DELETE /admin/users/{user}/sessions`), suspend/reactivate (`POST
+/admin/users/{user}/suspend`, `POST /admin/users/{user}/reactivate`), and editing a user's profile
+(`PUT /admin/users/{user}` → `App\Http\Requests\Admin\UpdateUserProfileRequest` →
+`Modules\Core\Services\ProfileService::updateProfile()` — the exact same service method the
+end-user's own `PUT /api/v1/core/profile` uses, so email/mobile changes clear verification and
+re-issue a code identically either way; editable fields are name/email/mobile/address/country/city
+— avatar/language/currency stay self-service-only); `users.delete` covers admin-initiated
+deletion (`DELETE /admin/users/{user}`, soft — same shape as the end-user's own
 self-service `DELETE /auth/account`, without a password-confirmation step since the admin's
 permission check is the gate). Soft-deleted users are excluded from the listing automatically (the
 repository queries through the model, so Eloquent's `SoftDeletes` global scope applies with no

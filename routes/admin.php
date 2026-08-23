@@ -109,6 +109,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
         });
         Route::middleware('can:users.update')->group(function () {
+            Route::put('/users/{user}', [UserController::class, 'updateProfile'])->name('users.update-profile');
             Route::delete('/users/{user}/sessions', [UserController::class, 'destroySessions'])->name('users.sessions.destroy');
             Route::post('/users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
             Route::post('/users/{user}/reactivate', [UserController::class, 'reactivate'])->name('users.reactivate');

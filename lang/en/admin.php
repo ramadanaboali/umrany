@@ -59,6 +59,7 @@ return [
         'user_suspended' => 'User account suspended.',
         'user_reactivated' => 'User account reactivated.',
         'user_deleted' => 'User account deleted.',
+        'user_profile_updated' => 'User profile updated.',
     ],
 
     'confirm' => [
@@ -154,6 +155,14 @@ return [
         'suspend_reason_label' => 'Reason (visible to the user)',
         'suspend_confirm' => 'Suspend account',
         'cancel' => 'Cancel',
+        'edit_profile' => 'Edit profile',
+        'edit_profile_modal_title' => 'Edit user profile',
+        'full_name' => 'Full name',
+        'address' => 'Address',
+        'country' => 'Country',
+        'city' => 'City',
+        'select_country' => 'Select a country',
+        'select_city' => 'Select a city',
     ],
 
     'profile' => [

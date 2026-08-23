@@ -36,6 +36,10 @@
 
             <div class="d-flex gap-2">
                 @can('users.update')
+                    <button type="button" class="btn btn-soft-primary" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+                        <i class="ri-pencil-line align-middle me-1"></i>{{ __('admin.users.edit_profile') }}
+                    </button>
+
                     @if ($activeSessionCount > 0)
                         <form method="POST" action="{{ route('admin.users.sessions.destroy', $user) }}" onsubmit="return confirm('{{ __('admin.confirm.revoke_sessions') }}');">
                             @csrf
@@ -90,5 +94,120 @@
                 </form>
             </div>
         </div>
+
+        <div class="modal fade" id="editProfileModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <form method="POST" action="{{ route('admin.users.update-profile', $user) }}" class="modal-content">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ __('admin.users.edit_profile_modal_title') }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="edit-full-name" class="form-label">{{ __('admin.users.full_name') }}</label>
+                                <input type="text" name="full_name" id="edit-full-name" class="form-control" maxlength="255" value="{{ old('full_name', $user->profile?->full_name) }}">
+                                @error('full_name')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-email" class="form-label">{{ __('admin.users.email') }}</label>
+                                <input type="email" name="email" id="edit-email" class="form-control" maxlength="255" value="{{ old('email', $user->email) }}">
+                                @error('email')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-mobile" class="form-label">{{ __('admin.users.mobile') }}</label>
+                                <input type="text" name="mobile" id="edit-mobile" class="form-control" maxlength="20" value="{{ old('mobile', $user->mobile) }}">
+                                @error('mobile')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-address" class="form-label">{{ __('admin.users.address') }}</label>
+                                <input type="text" name="address" id="edit-address" class="form-control" maxlength="255" value="{{ old('address', $user->profile?->address) }}">
+                                @error('address')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-country" class="form-label">{{ __('admin.users.country') }}</label>
+                                <select name="country_id" id="edit-country" class="form-select" data-cities-url="{{ url('/api/v1/core/countries') }}">
+                                    <option value="">{{ __('admin.users.select_country') }}</option>
+                                    @foreach ($countries as $country)
+                                        <option value="{{ $country->id }}" @selected((int) old('country_id', $user->profile?->country_id) === $country->id)>
+                                            {{ app()->getLocale() === 'ar' ? $country->name_ar : $country->name_en }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('country_id')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-city" class="form-label">{{ __('admin.users.city') }}</label>
+                                <select name="city_id" id="edit-city" class="form-select">
+                                    <option value="">{{ __('admin.users.select_city') }}</option>
+                                    @foreach ($cities as $city)
+                                        <option value="{{ $city->id }}" @selected((int) old('city_id', $user->profile?->city_id) === $city->id)>
+                                            {{ app()->getLocale() === 'ar' ? $city->name_ar : $city->name_en }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('city_id')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('admin.users.cancel') }}</button>
+                        <button type="submit" class="btn btn-primary">{{ __('admin.common.save') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     @endcan
+
+    @push('scripts')
+        <script>
+            // Re-populates #edit-city select from the public master-data endpoint whenever the
+            // country changes — the initial option list (server-rendered from $cities) already
+            // matches the user's current country, so this only runs on an actual change.
+            (function () {
+                const countrySelect = document.getElementById('edit-country');
+                const citySelect = document.getElementById('edit-city');
+
+                if (!countrySelect || !citySelect) {
+                    return;
+                }
+
+                const isArabic = document.documentElement.getAttribute('lang')?.startsWith('ar');
+
+                countrySelect.addEventListener('change', function () {
+                    const countryId = this.value;
+                    citySelect.innerHTML = '<option value="">{{ __('admin.users.select_city') }}</option>';
+
+                    if (!countryId) {
+                        return;
+                    }
+
+                    fetch(`${this.dataset.citiesUrl}/${countryId}/cities`)
+                        .then((response) => response.json())
+                        .then((body) => {
+                            body.data.forEach((city) => {
+                                const option = document.createElement('option');
+                                option.value = city.id;
+                                option.textContent = isArabic ? city.name_ar : city.name_en;
+                                citySelect.appendChild(option);
+                            });
+                        });
+                });
+            })();
+        </script>
+    @endpush
 @endsection

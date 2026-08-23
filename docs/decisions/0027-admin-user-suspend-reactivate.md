@@ -38,3 +38,23 @@ the admin can reactivate them.
 - No suspension history is kept — only the *current* suspension's reason/date/actor are visible.
   If an audit trail across multiple suspend/reactivate cycles is ever needed, that's a genuinely
   new requirement (a history table), not a gap in this change.
+
+## Extension: admin profile editing also reuses `users.update`
+
+Per the "Administrators may update user profiles according to assigned permissions" requirement:
+`PUT /admin/users/{user}` (`UserController::updateProfile()`) lets an admin edit a user's
+name/email/mobile/address/country/city — scoped with the user directly to reuse the existing
+`users.update` permission rather than add a new one, consistent with this ADR's original framing
+of that permission as "the mutating admin action on users," not a suspend/reactivate-only grant.
+Avatar/language/currency stay self-service-only — those are personal preferences, not
+administrative data an admin has a reason to override.
+
+The FormRequest (`App\Http\Requests\Admin\UpdateUserProfileRequest`) mirrors
+`Modules\Core\Http\Requests\Profile\UpdateProfileRequest`'s validation (uniqueness, city-belongs-
+to-country, at-least-one-of-email/mobile) but resolves the target user from the route binding
+(`$this->route('user')`), never `$this->user()` — the latter is the acting *admin* under the
+`admin` guard, not the user being edited. The controller then calls
+`Modules\Core\Services\ProfileService::updateProfile()` directly — the exact same service method
+the end-user's own `PUT /api/v1/core/profile` uses — so an admin-triggered email/mobile change
+clears verification and re-issues a code identically to a self-service one, with no duplicated
+business logic between the two call sites.

@@ -59,6 +59,7 @@ return [
         'user_suspended' => 'تم تعليق حساب المستخدم.',
         'user_reactivated' => 'تمت إعادة تفعيل حساب المستخدم.',
         'user_deleted' => 'تم حذف حساب المستخدم.',
+        'user_profile_updated' => 'تم تحديث ملف المستخدم.',
     ],
 
     'confirm' => [
@@ -154,6 +155,14 @@ return [
         'suspend_reason_label' => 'السبب (يظهر للمستخدم)',
         'suspend_confirm' => 'تعليق الحساب',
         'cancel' => 'إلغاء',
+        'edit_profile' => 'تعديل الملف الشخصي',
+        'edit_profile_modal_title' => 'تعديل ملف المستخدم',
+        'full_name' => 'الاسم الكامل',
+        'address' => 'العنوان',
+        'country' => 'الدولة',
+        'city' => 'المدينة',
+        'select_country' => 'اختر دولة',
+        'select_city' => 'اختر مدينة',
     ],
 
     'profile' => [

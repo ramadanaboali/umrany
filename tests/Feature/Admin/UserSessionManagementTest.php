@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Modules\Core\Enums\AdminStatus;
 use Modules\Core\Models\Admin;
+use Modules\Core\Models\City;
+use Modules\Core\Models\Country;
 use Modules\Core\Notifications\AccountActivatedNotification;
 use Modules\Core\Notifications\AccountSuspendedNotification;
 use Spatie\Permission\Models\Permission;
@@ -298,5 +300,107 @@ class UserSessionManagementTest extends TestCase
 
         $this->assertSoftDeleted($user);
         $this->assertSame(0, $user->tokens()->count());
+    }
+
+    /**
+     * Regression tests for the "Administrators may update user profiles according to assigned
+     * permissions" requirement — see the "Extension" section appended to docs/decisions/0027-
+     * admin-user-suspend-reactivate.md.
+     */
+    public function test_updating_a_users_profile_is_forbidden_without_users_update_permission(): void
+    {
+        Permission::findOrCreate('users.view', 'admin');
+        $role = Role::findOrCreate('Viewer', 'admin');
+        $role->syncPermissions(['users.view']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        $user = User::factory()->create();
+        $user->profile()->create(['full_name' => $user->name]);
+
+        $this->actingAs($admin, 'admin')
+            ->put("/admin/users/{$user->id}", ['full_name' => 'Attempted Name'])
+            ->assertForbidden();
+    }
+
+    public function test_admin_with_users_update_permission_can_update_a_users_profile(): void
+    {
+        Permission::findOrCreate('users.update', 'admin');
+        $role = Role::findOrCreate('Ops', 'admin');
+        $role->syncPermissions(['users.update']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        $user = User::factory()->create();
+        $user->profile()->create(['full_name' => $user->name]);
+
+        $this->actingAs($admin, 'admin')
+            ->put("/admin/users/{$user->id}", ['full_name' => 'Updated By Admin', 'address' => 'New Address'])
+            ->assertRedirect(route('admin.users.show', $user))
+            ->assertSessionHas('status');
+
+        $this->assertSame('Updated By Admin', $user->profile->refresh()->full_name);
+        $this->assertSame('New Address', $user->profile->address);
+    }
+
+    public function test_admin_updating_email_clears_verified_status_and_requires_reverification(): void
+    {
+        Permission::findOrCreate('users.update', 'admin');
+        $role = Role::findOrCreate('Ops', 'admin');
+        $role->syncPermissions(['users.update']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $user->profile()->create(['full_name' => $user->name]);
+
+        $this->actingAs($admin, 'admin')
+            ->put("/admin/users/{$user->id}", ['email' => 'new-email@example.com'])
+            ->assertRedirect(route('admin.users.show', $user));
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'email' => 'new-email@example.com', 'email_verified_at' => null]);
+        $this->assertDatabaseHas('verification_codes', ['user_id' => $user->id, 'type' => 'email', 'purpose' => 'account_verification']);
+    }
+
+    public function test_admin_cannot_set_an_email_already_used_by_another_user(): void
+    {
+        Permission::findOrCreate('users.update', 'admin');
+        $role = Role::findOrCreate('Ops', 'admin');
+        $role->syncPermissions(['users.update']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        User::factory()->create(['email' => 'taken@example.com']);
+        $user = User::factory()->create();
+        $user->profile()->create(['full_name' => $user->name]);
+
+        $this->actingAs($admin, 'admin')
+            ->put("/admin/users/{$user->id}", ['email' => 'taken@example.com'])
+            ->assertSessionHasErrors('email');
+    }
+
+    public function test_admin_cannot_set_a_city_that_does_not_belong_to_the_selected_country(): void
+    {
+        Permission::findOrCreate('users.update', 'admin');
+        $role = Role::findOrCreate('Ops', 'admin');
+        $role->syncPermissions(['users.update']);
+
+        $admin = $this->admin();
+        $admin->assignRole($role);
+
+        $user = User::factory()->create();
+        $user->profile()->create(['full_name' => $user->name]);
+
+        $countryA = Country::create(['code' => 'AA', 'name_en' => 'A', 'name_ar' => 'A', 'is_active' => true]);
+        $countryB = Country::create(['code' => 'BB', 'name_en' => 'B', 'name_ar' => 'B', 'is_active' => true]);
+        $cityInB = City::create(['country_id' => $countryB->id, 'name_en' => 'CityB', 'name_ar' => 'CityB', 'is_active' => true]);
+
+        $this->actingAs($admin, 'admin')
+            ->put("/admin/users/{$user->id}", ['country_id' => $countryA->id, 'city_id' => $cityInB->id])
+            ->assertSessionHasErrors('city_id');
     }
 }
