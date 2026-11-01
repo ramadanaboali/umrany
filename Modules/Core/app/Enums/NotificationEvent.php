@@ -20,6 +20,20 @@ enum NotificationEvent: string
     case AccountSuspended = 'account_suspended';
     case AccountActivated = 'account_activated';
 
+    // FR-PROVIDER-005/009 — see docs/decisions/0030-provider-taxonomy-portfolio-and-admin-
+    // review.md. Submitted is self-triggered (ProviderService::submitVerification()); the other
+    // four are admin-initiated (Services\Admin\ProviderManagementService).
+    case ProviderVerificationSubmitted = 'provider_verification_submitted';
+    case ProviderVerificationApproved = 'provider_verification_approved';
+    case ProviderVerificationRejected = 'provider_verification_rejected';
+    case ProviderProfilePublished = 'provider_profile_published';
+    case ProviderProfileSuspended = 'provider_profile_suspended';
+
+    // FR-PROVIDER-004 — see docs/decisions/0031-government-verification-mock-integration.md.
+    // Self-triggered from Services\GovernmentVerificationService::check(), regardless of whether
+    // the check succeeded or failed (the provider needs to know either way).
+    case GovernmentVerificationCompleted = 'government_verification_completed';
+
     /**
      * Both channels on by default for every event — a user opts out, rather than having to opt
      * in to notifications about their own account security.
@@ -46,7 +60,13 @@ enum NotificationEvent: string
             self::AccountSuspended => true,
             self::RegistrationCompleted,
             self::NewDeviceLogin,
-            self::AccountActivated => false,
+            self::AccountActivated,
+            self::ProviderVerificationSubmitted,
+            self::ProviderVerificationApproved,
+            self::ProviderVerificationRejected,
+            self::ProviderProfilePublished,
+            self::ProviderProfileSuspended,
+            self::GovernmentVerificationCompleted => false,
         };
     }
 

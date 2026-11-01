@@ -18,9 +18,14 @@ Modular monolith skeleton (5 modules), Docker/Octane/RoadRunner/Reverb/Horizon/P
 
 **Status:** Registration/login/logout/password reset (via a shared OTP mechanism covering both
 mobile-only and email accounts, not Laravel's email-only broker), session/device listing+revoke,
-profile CRUD (avatar, language, currency, country/city), provider-profile activation, and
-*manual* verification-document submission are built and tested. **Not yet built:** government
-(Saudi CR) verification integration, Portfolio, Certificates, public Provider statistics. The
+profile CRUD (avatar, language, currency, country/city), provider-profile activation with business
+categories and optional subcategories (`docs/decisions/0032-provider-subcategories.md`), *manual*
+verification-document submission, Portfolio, Certificates, the public provider directory, public
+provider statistics (partial — see
+`docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`), the admin screen that
+reviews/approves/rejects/publishes/suspends a provider, and a *mock* government (Saudi CR)
+verification integration (`docs/decisions/0031-government-verification-mock-integration.md` — no
+real government contract exists yet) are built and tested. The
 `SubscriptionEntitlementChecker`/`UserCapabilityResolver` stubs described in Phase 2 below are also
 in place now (returning the unsubscribed-default shape), so this phase's exit criterion — "a user
 can register, verify, activate a provider identity" — holds even though real subscription data
@@ -28,7 +33,7 @@ doesn't exist yet.
 
 **Why first:** every other phase needs "who is this user, are they verified, what's their profile" — it's a literal dependency of the `auth:sanctum` gate already wrapping every business module's routes, and of `Modules\Core\Contracts\ModuleEntitlementChecker`, which needs a real user to check.
 
-**Build:** registration/login/password reset (Sanctum tokens), sessions/devices, profile CRUD, provider-profile activation + business categories, verification-document upload, manual review workflow, optional government (Saudi CR) verification integration, the admin screens needed to review/approve verification requests.
+**Build:** registration/login/password reset (Sanctum tokens), sessions/devices, profile CRUD, provider-profile activation + business categories, verification-document upload, manual review workflow, Portfolio/Certificates, the public provider directory, a mock government (Saudi CR) verification integration, the admin screens needed to review/approve verification requests (built — see `docs/architecture/admin-portal.md` § Providers screen).
 
 **Exit criteria:** a user can register, build a profile, activate a provider identity, and get verified — holding a real Sanctum token that every later phase's endpoints can authenticate against. Monetization is still Phase 2, so `SubscriptionEntitlementChecker` keeps returning `true` for now.
 

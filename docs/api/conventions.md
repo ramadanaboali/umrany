@@ -36,12 +36,13 @@ preference. Separate from the admin-portal's own `App\Http\Middleware\SetAdminLo
 
 ## Filtering, sorting, and includes
 
-Every list/index endpoint uses `spatie/laravel-query-builder` rather than hand-parsing `$request->get(...)`, and gets real pagination by default — this is a standing rule (root `CLAUDE.md` Rule 10), not a per-endpoint judgment call. The one named exception is a small, bounded reference/master-data list backing a picker/dropdown UI (`GET /countries`, `.../cities`, `GET /currencies`) — those stay unpaginated but still gain filters. Real examples in this codebase today:
+Every list/index endpoint uses `spatie/laravel-query-builder` rather than hand-parsing `$request->get(...)`, and gets real pagination by default — this is a standing rule (root `CLAUDE.md` Rule 10), not a per-endpoint judgment call. The one named exception is a small, bounded reference/master-data list backing a picker/dropdown UI (`GET /countries`, `.../cities`, `GET /currencies`, `GET /provider-categories`, `GET /provider-subcategories`) — those stay unpaginated but still gain filters. Real examples in this codebase today:
 
 ```
 GET /api/v1/core/me/notifications?filter[read]=false&filter[type]=AccountSuspended&per_page=20
 GET /api/v1/core/auth/sessions?filter[device_name]=iphone
 GET /api/v1/core/countries?filter[search]=saudi
+GET /api/v1/core/providers?filter[city_id]=1&filter[category]=3&filter[search]=acme
 ```
 
 Each endpoint's controller declares its own allowed filters via `QueryBuilder::for(...)->allowedFilters(...)` — consult the endpoint's `/docs` entry (below) for what's supported. `allowedFilters()` is genuinely variadic (`AllowedFilter|string ...$filters`) — pass filters as separate arguments, not a single array literal; the latter is a silent runtime bug, not a style nit (see `docs/decisions/0029-centralized-notification-service-and-api-locale.md`). Note: `spatie/laravel-query-builder`'s `filter[...]`/`sort`/`include` query parameters aren't auto-documented by Scramble's OSS tier — a controller adopting `QueryBuilder::for(...)` needs hand-written `#[QueryParameter]` attributes for those to show up in `/docs` (see `docs/decisions/0023-scramble-over-scribe.md`).
@@ -182,9 +183,13 @@ requests-per-minute ceiling exists for anything not in the table above.
 Besides health checks (below), a small set of read-only endpoints intentionally sit outside auth
 because every client needs them before/without a session: `GET /api/v1/core/countries`,
 `GET /api/v1/core/countries/{country}/cities`, `GET /api/v1/core/currencies` (master data for
-registration-form pickers), and `GET /api/v1/core/settings` (site branding/contact/social info —
+registration-form pickers), `GET /api/v1/core/provider-categories` and
+`GET /api/v1/core/provider-subcategories` (master data for the provider business-category/
+subcategory pickers), `GET /api/v1/core/settings` (site branding/contact/social info —
 logo, name, contacts — for a mobile app or marketing site footer; admin-managed via the dashboard's
-Settings screen, see `docs/architecture/admin-portal.md`).
+Settings screen, see `docs/architecture/admin-portal.md`), and the public provider directory
+(`GET /api/v1/core/providers`, `GET /api/v1/core/providers/{provider}` — a project owner browses
+providers before ever logging in; only ever returns `Provider::isPubliclyVisible()` profiles).
 
 ## Health checks
 

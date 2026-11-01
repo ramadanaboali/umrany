@@ -7,6 +7,9 @@ use App\Http\Controllers\Admin\LocaleController;
 use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\ProfileController;
+use App\Http\Controllers\Admin\ProviderCategoryController;
+use App\Http\Controllers\Admin\ProviderController;
+use App\Http\Controllers\Admin\ProviderSubcategoryController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\Admin\ThemeController;
@@ -116,6 +119,52 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
         Route::middleware('can:users.delete')->group(function () {
             Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        });
+
+        // Providers are self-created by the account holder — there is no admin "create a
+        // provider" screen — but an admin can view/edit company info and drive the whole
+        // verification review + publish/suspend/reactivate lifecycle. See
+        // Modules\Core\Services\Admin\ProviderManagementService and
+        // docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md.
+        Route::middleware('can:providers.list')->group(function () {
+            Route::get('/providers', [ProviderController::class, 'index'])->name('providers.index');
+        });
+        Route::middleware('can:providers.view')->group(function () {
+            Route::get('/providers/{provider}', [ProviderController::class, 'show'])->name('providers.show');
+        });
+        Route::middleware('can:providers.update')->group(function () {
+            Route::put('/providers/{provider}', [ProviderController::class, 'update'])->name('providers.update');
+            Route::post('/providers/{provider}/approve', [ProviderController::class, 'approve'])->name('providers.approve');
+            Route::post('/providers/{provider}/reject', [ProviderController::class, 'reject'])->name('providers.reject');
+            Route::post('/providers/{provider}/suspend', [ProviderController::class, 'suspend'])->name('providers.suspend');
+            Route::post('/providers/{provider}/reactivate', [ProviderController::class, 'reactivate'])->name('providers.reactivate');
+
+            // FR-PROVIDER-004 — same providers.update permission, no new one: applying imported
+            // government data is part of the same admin-side provider-editing workflow.
+            Route::post('/providers/{provider}/government-verification/{governmentVerificationRequest}/apply', [ProviderController::class, 'applyGovernmentVerification'])->name('providers.government-verification.apply');
+        });
+
+        // Full 5-action CRUD — categories genuinely are admin-created/edited/deleted (no
+        // self-service creation path). Subcategory management (nested under a category) is
+        // gated by these same permissions, no separate set. See
+        // docs/decisions/0033-provider-category-admin-management.md.
+        Route::middleware('can:provider-categories.list')->group(function () {
+            Route::get('/provider-categories', [ProviderCategoryController::class, 'index'])->name('provider-categories.index');
+        });
+        Route::middleware('can:provider-categories.view')->group(function () {
+            Route::get('/provider-categories/{providerCategory}/subcategories', [ProviderSubcategoryController::class, 'index'])->name('provider-categories.subcategories.index');
+        });
+        Route::middleware('can:provider-categories.create')->group(function () {
+            Route::post('/provider-categories', [ProviderCategoryController::class, 'store'])->name('provider-categories.store');
+            Route::post('/provider-categories/{providerCategory}/subcategories', [ProviderSubcategoryController::class, 'store'])->name('provider-categories.subcategories.store');
+        });
+        Route::middleware('can:provider-categories.update')->group(function () {
+            Route::put('/provider-categories/{providerCategory}', [ProviderCategoryController::class, 'update'])->name('provider-categories.update');
+            Route::put('/provider-categories/{providerCategory}/subcategories/{providerSubcategory}', [ProviderSubcategoryController::class, 'update'])->name('provider-categories.subcategories.update');
+        });
+        Route::middleware('can:provider-categories.delete')->group(function () {
+            Route::delete('/provider-categories/{providerCategory}', [ProviderCategoryController::class, 'destroy'])->name('provider-categories.destroy');
+            Route::delete('/provider-categories/{providerCategory}/subcategories/{providerSubcategory}', [ProviderSubcategoryController::class, 'destroy'])->name('provider-categories.subcategories.destroy');
         });
 
         // Singleton config row (Modules\Core\Models\SiteSetting::current()) — 2-action permission

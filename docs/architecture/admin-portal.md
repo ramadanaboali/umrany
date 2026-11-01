@@ -133,6 +133,52 @@ permission check is the gate). Soft-deleted users are excluded from the listing 
 repository queries through the model, so Eloquent's `SoftDeletes` global scope applies with no
 extra code).
 
+## Providers screen
+
+`app/Http/Controllers/Admin/ProviderController` + `Modules\Core\Services\Admin\
+ProviderManagementService` + `resources/views/admin/providers/{index,show}.blade.php` — a listing
+(paginated, searchable by company name, filterable by status) plus the admin verification review +
+profile lifecycle actions over `Modules\Core\Models\Provider`: approve (which also publishes the
+profile — the spec's one-action workflow, see
+`docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`), reject (verification-only,
+required reason, profile status untouched), suspend/reactivate (profile status, independent of
+verification state, required reason on suspend), and company-info editing. There is still **no**
+admin "create a provider" action — providers are self-created by the account holder
+(`POST /api/v1/core/providers`) — and providers are never admin-deleted (suspension is the closest
+equivalent, and that's an update).
+
+This is why `Modules/Core/config/permissions.php` gives `providers.*` three actions —
+`providers.list`, `providers.view`, `providers.update` — instead of the five-action pattern, the
+same asymmetry as `users.*` above. `providers.update` deliberately covers the whole
+approve/reject/suspend/reactivate/edit-company-info workflow rather than splitting each action
+into its own catalog permission — see the ADR above for why. Soft-deleted providers are excluded
+from the listing automatically, same as the Users screen.
+
+The show page also lists the provider's government-verification history (FR-PROVIDER-004, mock
+integration — see `docs/decisions/0031-government-verification-mock-integration.md`) and, for a
+completed-but-unapplied check, an "Apply to profile" action under the same `providers.update`
+permission — no new permission for this.
+
+## Provider categories screen
+
+`app/Http/Controllers/Admin/{ProviderCategoryController,ProviderSubcategoryController}` +
+`Modules\Core\Services\Admin\ProviderCategoryManagementService` +
+`resources/views/admin/provider-categories/{index,subcategories}.blade.php` — full CRUD for the
+`ProviderCategory`/`ProviderSubcategory` taxonomy, previously seed-managed only
+(`docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`,
+`0032-provider-subcategories.md`). See `docs/decisions/0033-provider-category-admin-management.md`
+for the full reasoning.
+
+Full 5-action permission set (`provider-categories.list/view/create/update/delete`) — unlike
+`providers.*`/`users.*`, a category genuinely has no self-service creation path. Subcategory
+management (nested under `GET .../provider-categories/{category}/subcategories`) is gated by
+these same permissions, with no `provider-subcategories.*` set of its own — the same "nested
+resource, shared permission" shape as Role's permission-checkbox management inside the Role
+screen. A category/subcategory currently assigned to any provider cannot be deleted (mirrors
+`RoleManagementService`'s guard against deleting a role still assigned to an admin). Create/edit
+use modals on a single index page (like the Providers screen's edit modal), not dedicated
+create/edit pages.
+
 ## Settings screen
 
 `app/Http/Controllers/Admin/SiteSettingsController` + `Modules\Core\Services\Admin\

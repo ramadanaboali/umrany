@@ -10,9 +10,15 @@ use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Notifications\AccountActivatedNotification;
 use Modules\Core\Notifications\AccountSuspendedNotification;
 use Modules\Core\Notifications\BaseUserNotification;
+use Modules\Core\Notifications\GovernmentVerificationCompletedNotification;
 use Modules\Core\Notifications\NewDeviceLoginNotification;
 use Modules\Core\Notifications\PasswordChangedNotification;
 use Modules\Core\Notifications\PasswordResetCompletedNotification;
+use Modules\Core\Notifications\ProviderProfilePublishedNotification;
+use Modules\Core\Notifications\ProviderProfileSuspendedNotification;
+use Modules\Core\Notifications\ProviderVerificationApprovedNotification;
+use Modules\Core\Notifications\ProviderVerificationRejectedNotification;
+use Modules\Core\Notifications\ProviderVerificationSubmittedNotification;
 use Modules\Core\Notifications\RegistrationCompletedNotification;
 use Modules\Core\Notifications\SuspiciousLoginAttemptNotification;
 use Modules\Core\Notifications\VerificationCodeNotification;
@@ -87,6 +93,22 @@ final class NotificationDispatchService
             NotificationEvent::AccountSuspended => new AccountSuspendedNotification($data['reason'], $locale),
 
             NotificationEvent::AccountActivated => new AccountActivatedNotification($locale),
+
+            NotificationEvent::ProviderVerificationSubmitted => new ProviderVerificationSubmittedNotification($locale),
+
+            NotificationEvent::ProviderVerificationApproved => new ProviderVerificationApprovedNotification($locale),
+
+            NotificationEvent::ProviderVerificationRejected => new ProviderVerificationRejectedNotification($data['reason'], $locale),
+
+            NotificationEvent::ProviderProfilePublished => new ProviderProfilePublishedNotification($locale),
+
+            NotificationEvent::ProviderProfileSuspended => new ProviderProfileSuspendedNotification($data['reason'], $locale),
+
+            NotificationEvent::GovernmentVerificationCompleted => new GovernmentVerificationCompletedNotification(
+                $data['succeeded'],
+                $data['failure_reason'] ?? null,
+                $locale,
+            ),
         };
     }
 }

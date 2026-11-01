@@ -23,6 +23,8 @@ class CoreDatabaseSeeder extends Seeder
             AdminSeeder::class,
             MasterDataSeeder::class,
             SiteSettingSeeder::class,
+            ProviderCategorySeeder::class,
+            ProviderSubcategorySeeder::class,
         ]);
 
         if (! app()->environment('production')) {

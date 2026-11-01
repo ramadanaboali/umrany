@@ -84,4 +84,52 @@ return [
         'line_1' => 'Your account has been reactivated and you can sign in again.',
         'in_app' => 'Your account has been reactivated.',
     ],
+
+    'provider_verification_submitted' => [
+        'subject' => 'Your Umrany provider verification was submitted',
+        'greeting' => 'Verification submitted',
+        'line_1' => 'Your provider verification documents were submitted and are now pending admin review.',
+        'in_app' => 'Your provider verification was submitted for review.',
+    ],
+
+    'provider_verification_approved' => [
+        'subject' => 'Your Umrany provider verification was approved',
+        'greeting' => 'Verification approved',
+        'line_1' => 'Your provider verification has been approved.',
+        'in_app' => 'Your provider verification was approved.',
+    ],
+
+    'provider_verification_rejected' => [
+        'subject' => 'Your Umrany provider verification was rejected',
+        'greeting' => 'Verification rejected',
+        'line_1' => 'Your provider verification has been rejected.',
+        'line_reason' => 'Reason: :reason',
+        'in_app' => 'Your provider verification was rejected.',
+    ],
+
+    'provider_profile_published' => [
+        'subject' => 'Your Umrany provider profile is now live',
+        'greeting' => 'Provider profile published',
+        'line_1' => 'Your provider profile is now published and visible to project owners on Umrany.',
+        'in_app' => 'Your provider profile is now published.',
+    ],
+
+    'provider_profile_suspended' => [
+        'subject' => 'Your Umrany provider profile has been suspended',
+        'greeting' => 'Provider profile suspended',
+        'line_1' => 'Your provider profile has been suspended.',
+        'line_reason' => 'Reason: :reason',
+        'in_app' => 'Your provider profile was suspended.',
+    ],
+
+    'government_verification_completed' => [
+        'subject_succeeded' => 'Your government verification check is complete',
+        'subject_failed' => 'Your government verification check could not be completed',
+        'greeting' => 'Government verification',
+        'line_succeeded' => 'Your commercial registration number was successfully checked against the government registry. An administrator will review the imported information before it is applied to your profile.',
+        'line_failed' => 'We were unable to complete your government verification check.',
+        'line_reason' => 'Reason: :reason',
+        'in_app_succeeded' => 'Your government verification check completed successfully.',
+        'in_app_failed' => 'Your government verification check failed.',
+    ],
 ];

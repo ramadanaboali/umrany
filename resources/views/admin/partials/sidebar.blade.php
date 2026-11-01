@@ -52,6 +52,22 @@
                     </li>
                 @endcan
 
+                @can('providers.list')
+                    <li class="nav-item">
+                        <a href="{{ route('admin.providers.index') }}" class="nav-link menu-link {{ request()->routeIs('admin.providers.*') ? 'active' : '' }}">
+                            <i class="bx bx-buildings"></i> <span>{{ __('admin.nav.providers') }}</span>
+                        </a>
+                    </li>
+                @endcan
+
+                @can('provider-categories.list')
+                    <li class="nav-item">
+                        <a href="{{ route('admin.provider-categories.index') }}" class="nav-link menu-link {{ request()->routeIs('admin.provider-categories.*') ? 'active' : '' }}">
+                            <i class="bx bx-category"></i> <span>{{ __('admin.nav.provider_categories') }}</span>
+                        </a>
+                    </li>
+                @endcan
+
                 @can('roles.list')
                     <li class="nav-item">
                         <a href="{{ route('admin.roles.index') }}" class="nav-link menu-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">

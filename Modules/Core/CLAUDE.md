@@ -5,13 +5,14 @@ See `docs/modules/core.md` for the full reference (business objectives, FR group
 API prefixes per sub-area).
 
 **Implementation status**: Auth (including TOTP MFA, password history, soft-delete/account
-deletion, session management), Profile, Provider identity/verification (manual documents only —
-no government-CR integration yet), in-app + email Notifications (push deferred), Admin/RBAC, and
-`SiteSetting` (branding/contact/social config) are built and tested (see "What's actually
-implemented" below). Subscription, Chat, Finance/Wallet, Reports, CMS/SEO, `SystemSetting`,
-`AuditLog`, and the internal sales CRM are still just the target-domain description below, not
-implemented — this is a phased build per `docs/business/roadmap.md`, not a gap to fill
-speculatively.
+deletion, session management), Profile, Provider identity/verification (manual documents, plus a
+*mock* government-CR integration — no real government contract exists) plus business categories,
+portfolio, certificates, the public provider directory, and admin verification review/lifecycle,
+in-app + email Notifications (push deferred), Admin/RBAC, and `SiteSetting` (branding/contact/
+social config) are built and tested (see "What's actually implemented" below). Subscription, Chat,
+Finance/Wallet, Reports, CMS/SEO, `SystemSetting`, `AuditLog`, and the internal sales CRM are still
+just the target-domain description below, not implemented — this is a phased build per
+`docs/business/roadmap.md`, not a gap to fill speculatively.
 
 ## Entities
 
@@ -47,12 +48,30 @@ speculatively.
   verification, subscription-gated features. Soft-deletable, with partial unique indexes on both
   `user_id` and `commercial_registration_number` (fixed in the same ADR above — both were plain
   unique indexes despite the model already having `SoftDeletes`, blocking reuse after a soft-delete).
-- ProviderCategory / ProviderSubcategory — business category taxonomy for providers
+- ProviderCategory — bilingual (`name_en`/`name_ar`) business category taxonomy for providers,
+  same shape as `Country`. Soft-deletable, partial-unique-indexed `slug`. Seeded with a fixed
+  10-category starter list (`Database/Seeders/ProviderCategorySeeder`) — see
+  `docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md` — and now
+  admin-manageable end-to-end (full CRUD, `provider-categories.*` permissions) — see
+  `docs/decisions/0033-provider-category-admin-management.md`.
+- ProviderSubcategory — bilingual, nested under a `ProviderCategory`, slug-unique per category.
+  Seeded with a synthetic 34-subcategory starter set (`Database/Seeders/
+  ProviderSubcategorySeeder`) — not sourced from the spec, see
+  `docs/decisions/0032-provider-subcategories.md`. Selecting subcategories is always **optional**
+  for a provider, unlike categories, and a selected subcategory must belong to one of the
+  provider's selected categories (enforced in `Activate`/`UpdateProviderRequest`).
 - ProviderDocument — uploaded docs for manual verification review. Soft-deletable (ADR 0024) —
   preserves a provider's verification-submission history even once a document is superseded.
-- ProviderPortfolio — past-project showcase items
-- ProviderCertificate — certificates/awards/memberships
-- ProviderStatistics — public stats (rating, completed projects, response rate/time, etc.)
+- ProviderPortfolio — past-project showcase items: title, description, images (uploaded files on
+  the `public` disk, same convention as logo/cover), videos (a JSON array of plain URLs, never
+  uploads), completion date, project location, an optional `ProviderCategory` link.
+- ProviderCertificate — certificates/awards/memberships: name, issuer, an optional uploaded file,
+  issued date.
+- ProviderStatistics — public stats (rating, completed projects, response rate/time, etc.) — **not
+  a dedicated model**; exposed as a computed `statistics` sub-array on `ProviderResource`.
+  `years_of_experience` is genuinely computed from `year_established`; every other field is
+  `0`/`null` with a comment naming the future module it's blocked on (Projects, E-Commerce,
+  Reviews, Chat) — see the ADR above.
 - SubscriptionPlan — admin-defined plan: price, billing period, country, currency, display order
 - SubscriptionFeature / PlanFeature — dynamic feature grants per plan (never hard-coded to plan names)
 - ProviderSubscription — a provider's subscription instance; states: Pending Payment, Active, Expired, Cancelled, Suspended
@@ -60,7 +79,12 @@ speculatively.
 - SubscriptionPayment — payment tied to a subscription/renewal
 - VerificationRequest — provider verification submission; states: Not Submitted, Pending, Under Review, Approved, Rejected, Expired, Suspended
 - VerificationDocument / VerificationReview — supporting docs and admin review actions/notes
-- GovernmentVerificationRequest / GovernmentBusinessData — Saudi commercial-registration integration request and imported official data
+- GovernmentVerificationRequest / GovernmentBusinessData — Saudi commercial-registration
+  integration request and imported official data. **Built as a mock** (`Models\
+  GovernmentVerificationRequest`, `Data\GovernmentBusinessData`, `Services\
+  GovernmentVerificationService`, `Services\MockGovernmentVerificationClient` behind
+  `Contracts\GovernmentVerificationClient`) — no real government contract exists yet; see
+  `docs/decisions/0031-government-verification-mock-integration.md`.
 - Conversation / ConversationParticipant — chat thread between project owner and provider, tied to an accepted-offer flow
 - Message / MessageAttachment / MessageReadStatus — chat message content, attachments, and Sent/Delivered/Read status
 - Notification / NotificationTemplate / NotificationDelivery — notification instance, its template, and per-channel delivery record
@@ -224,25 +248,62 @@ reconsider the design (likely needs a new Contract or Event instead).
   `Enums/SocialPlatform` — unknown keys rejected at validation, not silently dropped).
   `Enums/ProviderVerificationStatus::canSubmit()` gates resubmission — only from
   `not_submitted`/`rejected`/`expired`, never while a review is already in progress or once
-  approved. Government-CR integration, Business Categories, and Portfolio/Certificates/Statistics
-  are not built — see `docs/modules/core.md` § Provider for the full target shape.
+  approved. Business Categories (`Models/ProviderCategory`, `category_ids` on
+  activate/update, synced via `$provider->categories()->sync()`), Portfolio
+  (`Http/Controllers/ProviderController@store|update|destroyPortfolio`), Certificates (same
+  shape, `@...Certificate`), and the public directory (`GET /api/v1/core/providers`,
+  `GET /api/v1/core/providers/{provider}` — only ever `Provider::isPubliclyVisible()` profiles)
+  are now built — see `docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`.
+  `ProviderResource`'s `statistics` sub-array is deliberately partial/honest (see ProviderStatistics
+  above).
+- **Provider admin review/lifecycle** (`Services/Admin/ProviderManagementService`,
+  `app/Http/Controllers/Admin/ProviderController`, root `resources/views/admin/providers/*`):
+  the piece nothing before this change could ever do — approve (which also publishes the profile,
+  per the spec's one-action workflow), reject (verification-only, profile status untouched),
+  suspend/reactivate (profile status, independent of verification), and admin-side company-info
+  edit. Gated by `providers.list`/`providers.view`/`providers.update` — `providers.update`
+  deliberately covers the whole approve/reject/suspend/reactivate/edit workflow, same
+  one-permission-covers-everything shape as `users.update`. See
+  `docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`.
+- **Government verification (mock)** (`Services/GovernmentVerificationService`,
+  `Services/MockGovernmentVerificationClient` behind `Contracts/GovernmentVerificationClient`,
+  `Models/GovernmentVerificationRequest`): `POST /api/v1/core/providers/me/government-verification`
+  checks the provider's own on-file CR number (deterministic mock — a number ending in `"0000"`
+  simulates "service unavailable"), records a history row, and notifies the provider either way.
+  Never auto-applies to the profile — an admin applies a completed check separately
+  (`Admin\ProviderController::applyGovernmentVerification()`, same `providers.update` permission,
+  no new one), and only ever merges into fields the provider left `null` (`address`/
+  `year_established` — `company_name` is required and never a merge target). No real government
+  contract exists; only `MockGovernmentVerificationClient`'s `CoreServiceProvider` binding needs to
+  change when one does. See `docs/decisions/0031-government-verification-mock-integration.md`.
+- **Provider category/subcategory admin management** (`Services/Admin/
+  ProviderCategoryManagementService`, `app/Http/Controllers/Admin/{ProviderCategoryController,
+  ProviderSubcategoryController}`, root `resources/views/admin/provider-categories/*`): full CRUD
+  for the taxonomy previously seed-managed only. Gated by `provider-categories.list/view/create/
+  update/delete` (the standard 5 — unlike `providers.*`, categories genuinely have no self-service
+  creation path); subcategory management shares the same permission set, no separate one. A
+  category/subcategory currently assigned to any provider cannot be deleted. See
+  `docs/decisions/0033-provider-category-admin-management.md`.
 - **Capability resolution** (`Contracts/UserCapabilityResolver` + `Services/CapabilityService`,
   `Http/Controllers/CapabilityController` at `GET /api/v1/core/me/capabilities`): see
   `docs/architecture/module-boundaries.md` § User capability resolution for the full contract.
   `account_types` (captured registration intent — `docs/decisions/0016-account-type-intent-
   capture.md`) is echoed here but is never an authorization source.
 - **Notifications** (`Http/Controllers/NotificationController`,
-  `NotificationPreferenceController`, `Notifications/BaseUserNotification` and its 8 concrete
+  `NotificationPreferenceController`, `Notifications/BaseUserNotification` and its 13 concrete
   subclasses): in-app (framework's own `DatabaseNotification`) + email built, push deferred. Every
   concrete notification checks `Services/NotificationPreferenceService::allows()` in its `via()` —
   see `docs/decisions/0017-notification-preferences-schema.md`. New-device-login detection is a
   dedicated `Models/UserDevice` table + `Services/DeviceRecognitionService`, not inferred from
-  Sanctum tokens — see `docs/decisions/0018-user-device-recognition.md`. All 8 events have both a
+  Sanctum tokens — see `docs/decisions/0018-user-device-recognition.md`. All 13 events have both a
   notification class and a real trigger site (`account_suspended`/`account_activated` fire from
-  `Services/Admin/UserManagementService::suspend()`/`reactivate()`).
+  `Services/Admin/UserManagementService::suspend()`/`reactivate()`; the 5 `provider_*` events fire
+  from `Services/ProviderService::submitVerification()` (self-triggered) and
+  `Services/Admin/ProviderManagementService::approve()/reject()/suspend()/reactivate()`
+  (admin-initiated) — see `docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`).
   **Dispatch goes through `Services/NotificationDispatchService::send($notifiable, $event, $data,
   $channels, $locale)`**, never `$notifiable->notify(new XNotification(...))` directly, for any of
-  the 8 `NotificationEvent`-mapped classes — it resolves locale (explicit param → recipient's own
+  the 13 `NotificationEvent`-mapped classes — it resolves locale (explicit param → recipient's own
   stored `UserProfile::preferred_language` → app default) and narrows channels (never widens) via
   `BaseUserNotification::restrictChannelsTo()`. `MfaStateChangedNotification`/
   `AdminResetPasswordNotification` have no `NotificationEvent` case and stay on direct `->notify()`
@@ -300,7 +361,10 @@ reconsider the design (likely needs a new Contract or Event instead).
   configuration.
 - Government-verification data must never silently overwrite user-entered provider data, must be
   stored with a source reference, and integration failures must not corrupt the provider profile —
-  treat the government-integration path as best-effort/additive, not authoritative-overwrite.
+  treat the government-integration path as best-effort/additive, not authoritative-overwrite. This
+  is enforced in code, not just a design intent — see `ProviderManagementService::
+  applyGovernmentVerification()`'s only-merge-into-`null`-fields rule and
+  `docs/decisions/0031-government-verification-mock-integration.md`.
 - Wallet/financial records are append-only: every movement is a new ledger entry; admin
   adjustments are separate entries with mandatory reason + logged actor, and original transactions
   are never edited or deleted. Don't model wallets as a single mutable balance column without a

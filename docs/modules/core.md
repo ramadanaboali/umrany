@@ -12,16 +12,20 @@ the API group prefix as stated in the source specification.
 specification — most of it is not built yet. Auth (including TOTP MFA, password history,
 soft-delete/self-service account deletion, session management, and the account-type intent
 capture described below), Profile (including automatic avatar optimization), Provider (manual
-verification only, no government-CR integration), and Notification's in-app + email channels
-(push deferred) are implemented and tested; Admin's dynamic RBAC foundation
-(`Admin`/`Role`/`Permission` on the `admin` guard, Super Admin bypass, admin/role management
-screens, plus a minimal read-mostly Users screen) is implemented as a Blade dashboard at the
-application root, not inside this module — see `docs/architecture/admin-portal.md`. Subscription,
-Verification's government-integration path, Chat, Finance, Reports, and the rest of Admin (CMS/SEO,
+verification, business categories, portfolio, certificates, the public provider directory,
+admin verification review/lifecycle, and a mock government-CR verification integration — see
+`docs/decisions/0031-government-verification-mock-integration.md`), and Notification's
+in-app + email channels (push deferred) are implemented and tested; Admin's dynamic RBAC
+foundation (`Admin`/`Role`/`Permission` on the `admin` guard, Super Admin bypass, admin/role
+management screens, a minimal read-mostly Users screen, and the Providers review screen) is
+implemented as a Blade dashboard at the application root, not inside this module — see
+`docs/architecture/admin-portal.md`. Verification's government-integration path is built as a mock
+(no real government contract exists — see `docs/decisions/0031-government-verification-mock-
+integration.md`). Subscription, Chat, Finance, Reports, and the rest of Admin (CMS/SEO,
 `SystemSetting`, `AuditLog`, internal CRM) are still just this document's target-domain
 description. `Modules/Core/CLAUDE.md`'s "Implementation status" line and "What's actually
 implemented" section are the quick-reference version of this same fact, and `docs/decisions/0011`
-through `0020` cover the specific design decisions made while building this pass — check there
+through `0031` cover the specific design decisions made while building this pass — check there
 first.
 
 A few implementation details differ from this document's target-domain description in ways worth
@@ -156,40 +160,70 @@ supplier, engineering office, consultant, manufacturer, or other construction-re
 Lets providers showcase expertise, services, experience, and credibility so project owners can
 evaluate them before requesting quotations or purchasing products.
 
+**Implementation status (this sub-area):** Company info, business categories and subcategories,
+manual verification, portfolio, certificates, the public directory, admin verification
+review/lifecycle, and a mock government-CR verification integration are built — see
+`Modules/Core/CLAUDE.md` "What's actually implemented",
+`docs/decisions/0030-provider-taxonomy-portfolio-and-admin-review.md`,
+`docs/decisions/0031-government-verification-mock-integration.md`, and
+`docs/decisions/0032-provider-subcategories.md`. **Still deferred:** a *real* government-CR
+integration (the mock stands in until a contract/credentials exist), and Subscription-Gated
+Features (FR-PROVIDER-009, depends on the not-yet-built Subscription sub-area).
+
 ### Key entities
 
 - **Provider** — the provider profile itself; one user account owns at most one provider profile,
   but a provider profile may offer multiple services simultaneously. Company info: name, logo,
   cover image, description, address, country, city, commercial registration number, license
   number, tax number (optional), year established, employee count, website, social links.
-- **ProviderCategory / ProviderSubcategory** — one or more business categories (Contractor,
-  Supplier, Engineering Office, Consultant, Manufacturer, Interior Design, Landscape, Maintenance,
-  Smart Home, Steel Structure, etc.), each with subcategories.
+- **ProviderCategory** — one or more bilingual (`name_en`/`name_ar`) business categories
+  (Contractor, Supplier, Engineering Office, Consultant, Manufacturer, Interior Design, Landscape,
+  Maintenance, Smart Home, Steel Structure — the exact 10 seeded by `ProviderCategorySeeder`), via
+  a `provider_category_provider` pivot.
+- **ProviderSubcategory** — bilingual, nested under a category (e.g. "General Contracting" under
+  Contractor), via a `provider_provider_subcategory` pivot. **Always optional** — unlike
+  categories, a provider may select zero subcategories, and any selected one must belong to one of
+  the provider's selected categories. Seeded content (34 subcategories,
+  `ProviderSubcategorySeeder`) is a synthetic starter set, not sourced from the spec — see
+  `docs/decisions/0032-provider-subcategories.md`.
 - **ProviderDocument** — uploaded verification documents (commercial registration, business
   license, national ID, additional documents) for manual review.
 - **ProviderVerification** — tracks manual and government verification status (see Verification
   section below — Provider and Verification are tightly coupled).
-- **ProviderPortfolio** — a past-project showcase item: title, description, images, videos,
-  completion date, project location, related category.
+- **ProviderPortfolio** — a past-project showcase item: title, description, images (uploaded
+  files), videos (a JSON array of plain URLs, never uploads — see the ADR above for why the two
+  are split), completion date, project location, an optional related category.
 - **ProviderCertificate** — professional certificates, awards, memberships, official recognitions.
 - **ProviderStatistics** — public stats: completed projects, active products, average rating,
-  review count, years of experience, response rate, response time.
+  review count, years of experience, response rate, response time. **Not a dedicated model** —
+  exposed as a computed `statistics` sub-array on `ProviderResource`; only `years_of_experience` is
+  a real computation today, the rest are `0`/`null` pending Projects/E-Commerce/Reviews/Chat.
 
 ### Key functional requirements
 
 - **Create Provider Profile (FR-PROVIDER-001):** Any registered user may activate one provider
   profile; visible publicly only after approval.
-- **Company Information (FR-PROVIDER-002)** and **Business Categories (FR-PROVIDER-003)** as above.
+- **Company Information (FR-PROVIDER-002)** and **Business Categories (FR-PROVIDER-003)** as above
+  — built, `category_ids` required on activation, optional `subcategory_ids` alongside it, both
+  editable via `PUT /providers/me`.
 - **Government Verification (FR-PROVIDER-004):** Integrates with the governmental commercial
   registration service using the CR number to auto-import official company info; imported data
-  may require admin approval before publication.
+  may require admin approval before publication. **Built as a mock integration** (`POST
+  /providers/me/government-verification`, admin-applied via `providers.update`) — see
+  `docs/decisions/0031-government-verification-mock-integration.md`. No real Saudi CR contract
+  exists yet; only the mock client needs replacing once one does.
 - **Manual Verification (FR-PROVIDER-005):** Document upload for admin review; requests remain
-  pending until approved/rejected.
-- **Portfolio Management (FR-PROVIDER-006)** and **Certificates (FR-PROVIDER-007)** as above.
-- **Public Statistics (FR-PROVIDER-008)** as above.
+  pending until approved/rejected. Built, including the admin review screen
+  (`providers.list`/`view`/`update`) that can approve (which also publishes the profile),
+  reject, suspend, or reactivate.
+- **Portfolio Management (FR-PROVIDER-006)** and **Certificates (FR-PROVIDER-007)** as above —
+  built, self-scoped CRUD under `/providers/me/portfolio` and `/providers/me/certificates`.
+- **Public Statistics (FR-PROVIDER-008)** as above — built, partial/honest (see ProviderStatistics
+  above).
 - **Subscription-Gated Features (FR-PROVIDER-009):** Profile dynamically shows premium features
   based on active subscription — verified badge, featured listing, ERP/E-Commerce access, max
-  project offers, AI features, premium visibility.
+  project offers, AI features, premium visibility. **Not built** — depends on the Subscription
+  sub-area below.
 
 ### Business workflow
 
@@ -275,7 +309,10 @@ service.
 - **GovernmentVerificationRequest / GovernmentBusinessData** — the government-integration side:
   request to the CR service and the imported official data (legal business name, CR number,
   registration status, establishment date, business activities, legal entity info, branches,
-  registered address, etc.).
+  registered address, etc.). **Built as a mock integration** (`Modules\Core\Models\
+  GovernmentVerificationRequest`, `Modules\Core\Data\GovernmentBusinessData`) — see
+  `docs/decisions/0031-government-verification-mock-integration.md`. Legal-entity-info/branches
+  fields aren't modeled (not needed to demonstrate the workflow); everything else is.
 
 ### Key functional requirements
 
@@ -285,7 +322,13 @@ service.
 - **Government Verification (FR-VER-003):** Connects to the designated Saudi government service
   via the Commercial Registration Number. Business rules: government data is stored with a source
   reference; it must never silently overwrite user-entered data; integration failures must not
-  corrupt provider profiles; manual verification always remains available as a fallback.
+  corrupt provider profiles; manual verification always remains available as a fallback. **Built
+  as a mock** (no real government contract exists) — every business rule above is enforced in code:
+  `source` is stamped on every request row, `ProviderManagementService::
+  applyGovernmentVerification()` only merges into currently-`null` fields, a failed check just
+  records a `Failed` row without touching the provider, and manual document verification
+  (FR-VER-001/002) is entirely independent of this path. See
+  `docs/decisions/0031-government-verification-mock-integration.md`.
 
 Note: Verification is functionally the identity-trust layer underneath Provider — most of its
 entities (verification requests/documents/reviews) exist specifically to gate Provider profile
@@ -522,7 +565,10 @@ action level and assigned dynamically to admin-created roles.
 - **User Management (FR-ADMIN-002):** Manage users, provider profiles, account status, user info,
   verification status, subscriptions, activities, related projects/orders, wallets, login info.
 - **Provider Management (FR-ADMIN-003):** View/edit providers, review verification, suspend/
-  restore, view projects/offers/store info/subscription info.
+  restore, view projects/offers/store info/subscription info. **View/edit/review verification/
+  suspend/restore are built** (`providers.list`/`view`/`update`, `app/Http/Controllers/Admin/
+  ProviderController`) — the projects/offers/store/subscription info panels are not, since those
+  modules don't exist yet.
 - **Project Management (FR-ADMIN-004):** View/edit/hide/close/reopen/archive/review/approve/
   reject projects, view offers and related conversations. Configurable **Project Moderation Mode**:
   Automatic Publication, Review All Projects, or Conditional Review (with configurable conditions).

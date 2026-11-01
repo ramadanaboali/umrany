@@ -8,6 +8,7 @@ use App\Models\User;
 use Modules\Core\Enums\ProviderStatus;
 use Modules\Core\Enums\ProviderVerificationStatus;
 use Modules\Core\Models\Provider;
+use Modules\Core\Models\ProviderCategory;
 use Tests\TestCase;
 
 class CapabilityTest extends TestCase
@@ -87,8 +88,10 @@ class CapabilityTest extends TestCase
             ->getJson('/api/v1/core/me/capabilities')
             ->assertJsonPath('data.is_provider', false);
 
+        $category = ProviderCategory::create(['slug' => 'contractor', 'name_en' => 'Contractor', 'name_ar' => 'مقاول']);
+
         $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/v1/core/providers', ['company_name' => 'Acme'])
+            ->postJson('/api/v1/core/providers', ['company_name' => 'Acme', 'category_ids' => [$category->id]])
             ->assertStatus(201);
 
         $this->withHeader('Authorization', "Bearer {$token}")

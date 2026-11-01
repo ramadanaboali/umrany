@@ -9,7 +9,9 @@ use Modules\Core\Http\Controllers\MfaController;
 use Modules\Core\Http\Controllers\NotificationController;
 use Modules\Core\Http\Controllers\NotificationPreferenceController;
 use Modules\Core\Http\Controllers\ProfileController;
+use Modules\Core\Http\Controllers\ProviderCategoryController;
 use Modules\Core\Http\Controllers\ProviderController;
+use Modules\Core\Http\Controllers\ProviderSubcategoryController;
 use Modules\Core\Http\Controllers\SessionController;
 use Modules\Core\Http\Controllers\SiteSettingController;
 
@@ -50,6 +52,18 @@ Route::prefix('v1/core')->name('core.')->group(function () {
     Route::get('/countries/{country}/cities', [MasterDataController::class, 'cities'])->name('countries.cities');
     Route::get('/currencies', [MasterDataController::class, 'currencies'])->name('currencies.index');
     Route::get('/settings', [SiteSettingController::class, 'show'])->name('settings.show');
+    Route::get('/provider-categories', [ProviderCategoryController::class, 'index'])->name('provider-categories.index');
+    Route::get('/provider-subcategories', [ProviderSubcategoryController::class, 'index'])->name('provider-subcategories.index');
+
+    // FR-PROVIDER-*: the public provider directory — only Published + Approved providers ever
+    // show up here, enforced inside EloquentProviderRepository::paginatePublic()/
+    // Provider::isPubliclyVisible(), not by these routes' placement. Public/unauthenticated by
+    // design — this is the storefront a project owner browses before ever logging in.
+    // GET /providers/{provider} is registered at the very end of this file, deliberately AFTER
+    // every literal /providers/... route (notably GET /providers/me below) — Laravel matches
+    // routes in registration order, not by specificity, so a wildcard segment registered here
+    // would shadow /providers/me instead of ever reaching it.
+    Route::get('/providers', [ProviderController::class, 'index'])->name('providers.index');
 
     // --- Auth: public ---
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:login')->name('auth.register');
@@ -109,6 +123,23 @@ Route::prefix('v1/core')->name('core.')->group(function () {
             Route::delete('/providers/me/cover', [ProviderController::class, 'destroyCover'])->name('providers.cover.destroy');
             Route::post('/providers/me/verification', [ProviderController::class, 'submitVerification'])->name('providers.verification.store');
 
+            // FR-PROVIDER-004: mock integration — see Modules\Core\Services\
+            // GovernmentVerificationService and docs/decisions/0031-government-verification-
+            // mock-integration.md.
+            Route::post('/providers/me/government-verification', [ProviderController::class, 'requestGovernmentVerification'])->name('providers.government-verification.store');
+
+            // FR-PROVIDER-006/007: self-scoped portfolio/certificate management — same "me/"
+            // convention as verification/logo/cover above. Ownership (the {portfolio}/
+            // {certificate} really belongs to the authenticated account's provider) is checked
+            // inside Modules\Core\Services\ProviderService, not by route scoping.
+            Route::post('/providers/me/portfolio', [ProviderController::class, 'storePortfolio'])->name('providers.portfolio.store');
+            Route::post('/providers/me/portfolio/{portfolio}', [ProviderController::class, 'updatePortfolio'])->name('providers.portfolio.update');
+            Route::delete('/providers/me/portfolio/{portfolio}', [ProviderController::class, 'destroyPortfolio'])->name('providers.portfolio.destroy');
+
+            Route::post('/providers/me/certificates', [ProviderController::class, 'storeCertificate'])->name('providers.certificates.store');
+            Route::post('/providers/me/certificates/{certificate}', [ProviderController::class, 'updateCertificate'])->name('providers.certificates.update');
+            Route::delete('/providers/me/certificates/{certificate}', [ProviderController::class, 'destroyCertificate'])->name('providers.certificates.destroy');
+
             Route::get('/me/notification-preferences', [NotificationPreferenceController::class, 'show'])->name('me.notification-preferences.show');
             Route::put('/me/notification-preferences', [NotificationPreferenceController::class, 'update'])->name('me.notification-preferences.update');
 
@@ -118,4 +149,9 @@ Route::prefix('v1/core')->name('core.')->group(function () {
             Route::post('/me/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('me.notifications.read-all');
         });
     });
+
+    // Deliberately last: a wildcard segment registered any earlier in this file would shadow
+    // every literal /providers/... route above it (notably GET /providers/me) — see the comment
+    // by GET /providers near the top of this file.
+    Route::get('/providers/{provider}', [ProviderController::class, 'showPublic'])->name('providers.show');
 });

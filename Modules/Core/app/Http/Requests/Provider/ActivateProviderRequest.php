@@ -8,6 +8,7 @@ use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Modules\Core\Enums\SocialPlatform;
+use Modules\Core\Models\ProviderSubcategory;
 
 final class ActivateProviderRequest extends FormRequest
 {
@@ -37,6 +38,13 @@ final class ActivateProviderRequest extends FormRequest
             'website' => ['nullable', 'url', 'max:255'],
             'social_links' => ['nullable', 'array'],
             'social_links.*' => ['url', 'max:255'],
+            // FR-PROVIDER-003: at least one business category is required to activate.
+            'category_ids' => ['required', 'array', 'min:1'],
+            'category_ids.*' => ['integer', 'distinct', Rule::exists('provider_categories', 'id')->whereNull('deleted_at')],
+            // Subcategories are always optional (docs/decisions/0032-provider-subcategories.md),
+            // unlike categories above.
+            'subcategory_ids' => ['nullable', 'array'],
+            'subcategory_ids.*' => ['integer', 'distinct', Rule::exists('provider_subcategories', 'id')->whereNull('deleted_at')],
         ];
     }
 
@@ -55,6 +63,7 @@ final class ActivateProviderRequest extends FormRequest
                 }
 
                 $this->assertKnownSocialPlatforms($validator);
+                $this->assertSubcategoriesBelongToSelectedCategories($validator);
             },
         ];
     }
@@ -65,6 +74,30 @@ final class ActivateProviderRequest extends FormRequest
 
         foreach ($unknown as $platform) {
             $validator->errors()->add('social_links', "Unknown social platform \"{$platform}\".");
+        }
+    }
+
+    /**
+     * A selected subcategory must belong to one of the selected top-level categories — prevents
+     * e.g. selecting "Home Automation" (Smart Home) without ever selecting Smart Home itself.
+     */
+    private function assertSubcategoriesBelongToSelectedCategories(ValidatorContract $validator): void
+    {
+        $subcategoryIds = $this->input('subcategory_ids', []);
+
+        if (empty($subcategoryIds)) {
+            return;
+        }
+
+        $categoryIds = $this->input('category_ids', []);
+
+        $invalidCount = ProviderSubcategory::query()
+            ->whereIn('id', $subcategoryIds)
+            ->whereNotIn('provider_category_id', $categoryIds)
+            ->count();
+
+        if ($invalidCount > 0) {
+            $validator->errors()->add('subcategory_ids', 'Every subcategory must belong to one of the selected categories.');
         }
     }
 }

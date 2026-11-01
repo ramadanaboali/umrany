@@ -36,11 +36,33 @@ return [
         'users.view',
         'users.update',
         'users.delete',
+        // Deliberately 3 actions, not 5 — same asymmetry as users.* above: providers are created
+        // by the account holder (POST /api/v1/core/providers), never by an admin, so there is no
+        // admin "create a provider" screen to gate, and providers are never admin-deleted either
+        // (a suspended profile is the closest equivalent, and that's an update, not a delete).
+        // `providers.update` covers approve/reject/suspend/reactivate/edit-company-info — one
+        // action for the whole review+lifecycle workflow, exactly like `users.update` covers
+        // suspend+reactivate+profile-edit. See docs/decisions/0030-provider-taxonomy-portfolio-
+        // and-admin-review.md.
+        'providers.list',
+        'providers.view',
+        'providers.update',
         // Deliberately 2 actions, not 5 — `SiteSetting` (Modules\Core\Models\SiteSetting) is a
         // singleton row that always exists (Modules\Core\Database\Seeders\SiteSettingSeeder),
         // so there's no list/create/delete screen to gate. See docs/architecture/admin-portal.md.
         'settings.view',
         'settings.update',
+        // Full 5 actions — unlike providers/users, categories genuinely are admin-created/
+        // edited/deleted (no self-service creation path exists; they were seed-managed only
+        // until this screen). `provider-categories.*` also gates ProviderSubcategory management
+        // (nested under a category in the same admin screen) — no separate permission set, same
+        // way roles.* covers Role's permission-checkbox management with no permissions.* of its
+        // own. See docs/decisions/0033-provider-category-admin-management.md.
+        'provider-categories.list',
+        'provider-categories.view',
+        'provider-categories.create',
+        'provider-categories.update',
+        'provider-categories.delete',
     ],
 
     'roles' => [
@@ -48,8 +70,13 @@ return [
             'admins.list', 'admins.view', 'admins.create', 'admins.update', 'admins.delete',
             'roles.list', 'roles.view', 'roles.create', 'roles.update', 'roles.delete',
             'users.list', 'users.view', 'users.update', 'users.delete',
+            'providers.list', 'providers.view', 'providers.update',
             'settings.view', 'settings.update',
+            'provider-categories.list', 'provider-categories.view', 'provider-categories.create', 'provider-categories.update', 'provider-categories.delete',
         ],
-        'Support' => ['admins.list', 'admins.view', 'roles.list', 'roles.view', 'users.list', 'users.view', 'settings.view'],
+        'Support' => [
+            'admins.list', 'admins.view', 'roles.list', 'roles.view', 'users.list', 'users.view', 'providers.list', 'providers.view', 'settings.view',
+            'provider-categories.list', 'provider-categories.view',
+        ],
     ],
 ];

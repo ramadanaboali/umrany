@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class NotificationPreferenceTest extends TestCase
 {
-    public function test_get_returns_all_eight_events_with_correct_defaults_for_a_user_with_no_stored_preferences(): void
+    public function test_get_returns_every_event_with_correct_defaults_for_a_user_with_no_stored_preferences(): void
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
         $token = $user->createToken('test')->plainTextToken;
@@ -22,7 +22,11 @@ class NotificationPreferenceTest extends TestCase
 
         $data = Collection::make($response->json('data'));
 
-        $this->assertCount(8, $data);
+        // Not hardcoded to a specific count — asserts against the enum's own case count so this
+        // test doesn't need editing every time NotificationEvent gains a new case (13 as of the 5
+        // provider_* events added in docs/decisions/0030-provider-taxonomy-portfolio-and-admin-
+        // review.md).
+        $this->assertCount(count(NotificationEvent::cases()), $data);
         $this->assertSame(NotificationEvent::values(), $data->pluck('event_type')->all());
 
         foreach (NotificationEvent::cases() as $event) {

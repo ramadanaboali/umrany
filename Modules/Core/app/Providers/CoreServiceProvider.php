@@ -9,6 +9,7 @@ use Illuminate\Validation\Rules\Password;
 use Modules\Core\Console\Commands\AuditPermissionsCommand;
 use Modules\Core\Console\Commands\PromoteSuperAdminCommand;
 use Modules\Core\Console\Commands\SyncPermissionsCommand;
+use Modules\Core\Contracts\GovernmentVerificationClient;
 use Modules\Core\Contracts\ModuleEntitlementChecker;
 use Modules\Core\Contracts\UserCapabilityResolver;
 use Modules\Core\Http\Middleware\EnsureAccountIsVerified;
@@ -37,6 +38,7 @@ use Modules\Core\Repositories\EloquentUserProfileRepository;
 use Modules\Core\Repositories\EloquentUserRepository;
 use Modules\Core\Repositories\EloquentVerificationCodeRepository;
 use Modules\Core\Services\CapabilityService;
+use Modules\Core\Services\MockGovernmentVerificationClient;
 use Modules\Core\Services\SubscriptionEntitlementChecker;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -84,6 +86,10 @@ class CoreServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(ModuleEntitlementChecker::class, SubscriptionEntitlementChecker::class);
         $this->app->bind(UserCapabilityResolver::class, CapabilityService::class);
+
+        // FR-PROVIDER-004 — swap to a real client when a Saudi CR service contract exists; see
+        // docs/decisions/0031-government-verification-mock-integration.md.
+        $this->app->bind(GovernmentVerificationClient::class, MockGovernmentVerificationClient::class);
 
         // Repository bindings — see docs/architecture/backend-layering.md. Plain bind(), not
         // singleton(): none of these carry request-scoped state, but binding non-singleton is

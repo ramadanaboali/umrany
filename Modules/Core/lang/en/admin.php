@@ -17,4 +17,6 @@ return [
     'invalid_credentials' => 'These credentials do not match our records.',
     'account_cannot_sign_in' => 'This account cannot sign in. Contact a Super Admin if you believe this is a mistake.',
     'password_previously_used' => 'This password has been used before. Choose a different password.',
+    'category_still_assigned_to_providers' => 'This category is still assigned to one or more providers — remove it from them first.',
+    'subcategory_still_assigned_to_providers' => 'This subcategory is still assigned to one or more providers — remove it from them first.',
 ];

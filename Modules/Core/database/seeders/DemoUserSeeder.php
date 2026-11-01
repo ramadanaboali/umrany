@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Modules\Core\Enums\AccountType;
+use Modules\Core\Enums\GovernmentVerificationStatus;
 use Modules\Core\Enums\NotificationEvent;
 use Modules\Core\Enums\ProviderStatus;
 use Modules\Core\Enums\ProviderVerificationStatus;
@@ -15,6 +16,8 @@ use Modules\Core\Models\MfaRecoveryCode;
 use Modules\Core\Models\NotificationPreference;
 use Modules\Core\Models\PasswordHistory;
 use Modules\Core\Models\Provider;
+use Modules\Core\Models\ProviderCategory;
+use Modules\Core\Models\ProviderSubcategory;
 use Modules\Core\Models\UserDevice;
 use Modules\Core\Models\UserMfaSetting;
 
@@ -70,12 +73,66 @@ final class DemoUserSeeder extends Seeder
                 'status' => ProviderStatus::Published,
                 'has_ecommerce_access' => true,
                 'has_erp_access' => true,
+                'commercial_registration_number' => 'CR-DEMO-1001',
             ],
         );
 
         $provider->verification()->updateOrCreate(
             ['provider_id' => $provider->id],
             ['status' => ProviderVerificationStatus::Approved, 'submitted_at' => now(), 'reviewed_at' => now()],
+        );
+
+        // FR-PROVIDER-003: exercise the categories pivot too, not just the schema — the demo
+        // provider offers Contractor + Supplier services (ProviderCategorySeeder must run before
+        // this seeder — see CoreDatabaseSeeder's ordering).
+        $demoCategorySlugs = ['contractor', 'supplier'];
+        $provider->categories()->sync(
+            ProviderCategory::query()->whereIn('slug', $demoCategorySlugs)->pluck('id')->all(),
+        );
+
+        // FR-PROVIDER-003 (root CLAUDE.md Rule 6): exercise the (always optional) subcategory
+        // pivot too — see docs/decisions/0032-provider-subcategories.md.
+        $demoSubcategorySlugs = ['general-contracting', 'building-materials'];
+        $provider->subcategories()->sync(
+            ProviderSubcategory::query()->whereIn('slug', $demoSubcategorySlugs)->pluck('id')->all(),
+        );
+
+        // FR-PROVIDER-006/007: exercise the portfolio/certificate schema too, not just categories
+        // (root CLAUDE.md Rule 6 — a new Provider sub-entity needs a realistic seeded example).
+        $provider->portfolios()->updateOrCreate(
+            ['provider_id' => $provider->id, 'title' => 'Villa Renovation — Al Nakheel District'],
+            [
+                'provider_category_id' => ProviderCategory::query()->where('slug', 'contractor')->value('id'),
+                'description' => 'Full interior and structural renovation of a 4-bedroom villa, completed on schedule.',
+                'completion_date' => now()->subMonths(6)->toDateString(),
+                'project_location' => 'Riyadh, Saudi Arabia',
+            ],
+        );
+
+        $provider->certificates()->updateOrCreate(
+            ['provider_id' => $provider->id, 'name' => 'ISO 9001:2015 Quality Management'],
+            ['issuer' => 'Saudi Standards, Metrology and Quality Organization (SASO)', 'issued_date' => now()->subYears(2)->toDateString()],
+        );
+
+        // FR-PROVIDER-004 (root CLAUDE.md Rule 6): exercise the mock government-verification
+        // schema too — a completed, unapplied check, so the admin "apply to profile" action has a
+        // real example to demonstrate. See docs/decisions/0031-government-verification-mock-
+        // integration.md.
+        $provider->governmentVerificationRequests()->updateOrCreate(
+            ['provider_id' => $provider->id, 'commercial_registration_number' => 'CR-DEMO-1001'],
+            [
+                'status' => GovernmentVerificationStatus::Completed,
+                'source' => 'mock',
+                'imported_data' => [
+                    'legal_business_name' => 'Registered Business CR-DEMO-1001',
+                    'registration_status' => 'active',
+                    'establishment_date' => '2015-01-01',
+                    'business_activities' => ['General Contracting', 'Construction Consultancy'],
+                    'registered_address' => 'Mock Registered Address, Riyadh, Saudi Arabia',
+                ],
+                'requested_at' => now()->subDay(),
+                'completed_at' => now()->subDay(),
+            ],
         );
 
         $this->seedMfa($multiHat);
