@@ -160,6 +160,8 @@ supplier, engineering office, consultant, manufacturer, or other construction-re
 Lets providers showcase expertise, services, experience, and credibility so project owners can
 evaluate them before requesting quotations or purchasing products.
 
+> ⚠️ **Superseded 2026-11-17 (ADR-0034, PRD-FR-006 #6):** provider categories become the `lkp_provider_categories` tree from the lookups workbook v1.3 (`provider_subcategories` removed, pivot repointed); **at least one main category and one or more subcategories are mandatory**. The text below describes the pre-UMR-002 implementation.
+
 **Implementation status (this sub-area):** Company info, business categories and subcategories,
 manual verification, portfolio, certificates, the public directory, admin verification
 review/lifecycle, and a mock government-CR verification integration are built — see

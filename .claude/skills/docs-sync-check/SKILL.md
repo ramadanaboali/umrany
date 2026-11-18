@@ -21,7 +21,7 @@ Group the changed files by what they represent: a new/changed entity or migratio
 | You changed... | ...this doc must reflect it |
 |---|---|
 | A migration/model/entity in `Modules/<X>` | `Modules/<X>/CLAUDE.md` entity list **and** `docs/modules/<x>.md` |
-| A route/controller | Scramble annotations (`#[Group]` on the class, descriptions/`@example` on the FormRequest's `rules()`, `#[Response]` only where inference can't reach) on the controller/FormRequest, and `docs/api/conventions.md` if it introduces a new pattern (not just a new endpoint using existing patterns) |
+| A route/controller | L5-Swagger OpenAPI attributes (operation on the method, schemas on FormRequest/Resource), `api:docs-coverage` passes, `composer api:sync` run |
 | A new package, service, or infra choice | A new `docs/decisions/NNNN-*.md` ADR, plus the relevant `docs/architecture/*.md` table (tech-stack.md, infrastructure.md, or system-architecture.md) |
 | A new `Contracts\...` interface or `Events\...` class | `docs/architecture/module-boundaries.md` (does the existing "bad vs. good" narrative still match reality?) |
 | A new repeatable workflow you'd want Claude to follow again | A new or updated `.claude/skills/*/SKILL.md`, and the **Skills** list in root `CLAUDE.md` |

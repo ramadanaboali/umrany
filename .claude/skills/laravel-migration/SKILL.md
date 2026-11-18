@@ -5,7 +5,13 @@ description: Safe migration workflow for Umrany — module placement, reversibil
 
 # Write a safe migration
 
-**Dev-phase exception (root `CLAUDE.md` Rule 7):** this project has no production data yet. If
+**Lookup tables (`lkp_*`) → use the `lookup-table` skill** (generated from the workbook, never hand-written).
+
+**Migration policy (D-LKP-10, 2026-11-17):** UMR-002 rewrites all migrations into a clean, guard-free baseline;
+until the **first staging deploy** the old rule below applies; after it, migrations are **additive-only** and the
+dev-phase exception is retired (check the ADR in `docs/decisions/` for the cut-over date).
+
+**Dev-phase exception (root `CLAUDE.md` Rule 7, until staging cut-over):** this project has no production data yet. If
 you're changing a table this project itself introduced (not vendor/package tables), edit the
 original migration file directly and reset the database (`migrate:fresh --seed`) instead of writing
 a new follow-on migration — the rest of this skill's guidance (reversibility, indexing, FK checks)

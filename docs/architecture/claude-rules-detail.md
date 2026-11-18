@@ -1,0 +1,255 @@
+# CLAUDE.md rules — full rationale and history
+
+> Moved verbatim from root `CLAUDE.md` on 2026-11-11 so the always-loaded file stays short. `CLAUDE.md` holds the condensed rules; this file holds the reasoning, incidents and exact gotchas behind them. Read the section for a rule when you need its detail.
+
+## Rule 0 — build only what's been explicitly asked for, phase by phase
+
+Per `docs/business/roadmap.md`, Phase 1 (Auth/Profile/Provider identity+verification) and a
+pulled-forward slice of Phase 7 (Admin/RBAC + the admin Blade dashboard) are now built in
+`Modules/Core` and root `app/` — see that module's `CLAUDE.md` "Implementation status" line for
+exactly what exists. `Modules/Projects`, `Modules/ECommerce`, `Modules/ERP`, `Modules/AI`, and
+Core's Subscription/Chat/Notification/Finance/Reports/CMS sub-areas are still bare skeletons.
+**Do not add business features (real entities, CRUD endpoints, business logic) to any of those
+unless the user explicitly asks for that specific feature in that conversation.**
+Infrastructure/tooling work (health checks, logging, CI, docs, migrations for framework-level
+tables) is fine; inventing product functionality speculatively is not. If you're unsure whether
+something counts as "a feature," ask.
+
+## Product in one breath
+
+Umrany connects construction project owners, contractors/suppliers, and platform admins through four products — a project bidding platform, a construction materials marketplace, a lightweight ERP, and AI-assisted decision support — sharing one account, one subscription system, and one admin portal. Full detail: [docs/business/overview.md](docs/business/overview.md), [docs/business/business-model.md](docs/business/business-model.md).
+
+## Module map
+
+This is a modular monolith (`nwidart/laravel-modules`). Full rationale and dependency rules: [docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md).
+
+| Module | Owns | API prefix |
+|---|---|---|
+| `Modules/Core` | Auth, profiles, provider identity, subscriptions, verification, chat, notifications, wallet/finance primitives, reporting engine, admin/RBAC | `/api/v1/core` |
+| `Modules/Projects` | Project bidding platform: publish → offers → chat → award → completion, tenders | `/api/v1/projects` |
+| `Modules/ECommerce` | Multi-vendor marketplace: stores, products, cart, checkout, orders, delivery, supplier/customer wallets, reviews | `/api/v1/ecommerce` |
+| `Modules/ERP` | Lightweight CRM, quotations, invoices, expenses — independent of the Projects module by design | `/api/v1/erp` |
+| `Modules/AI` | BOQ analysis, provider matching, offer comparison — exposes service contracts other modules call | `/api/v1/ai` |
+
+Each module has its own `CLAUDE.md` with its entity list, workflows, and gotchas — it loads automatically when you're working inside that directory.
+
+**The one exception to "everything lives in `Modules/*`":** the admin dashboard
+(`app/Http/Controllers/Admin`, `resources/views/admin`, `routes/admin.php`, plus its theme/i18n
+support: `app/Support/AdminTheme`, `app/Http/Middleware/SetAdminLocale`, root `lang/{en,ar}/`,
+`public/vendor/velzon/`) lives at the application root, session-authenticated via a separate
+`admin` guard — see [docs/architecture/admin-portal.md](docs/architecture/admin-portal.md) and
+[docs/decisions/0007-in-monolith-blade-admin.md](docs/decisions/0007-in-monolith-blade-admin.md)
+for why. Its data/RBAC model (`Admin`, roles, permissions) is still Core-owned; only the UI layer
+sits outside the module tree, and it still only depends on Core the way every module does.
+
+## Rule 1 — module boundaries (Core-only dependency)
+
+A module may depend on `Modules/Core` contracts/events. **Two business modules never reach into each other's Eloquent models directly.** Cross-module communication goes through `Modules/Core/app/Events` (domain events) or an explicit `Contracts` interface the owning module binds in its service provider. If you're about to `use Modules\ECommerce\...` from inside `Modules/ERP`, stop — that's a boundary violation; run `.claude/skills/module-boundary-check` before you open a PR.
+
+## Rule 2 — modules must stay independently purchasable
+
+A customer can buy ERP without ECommerce, ECommerce without Projects, etc. **Never gate a feature by checking `module:disable`/`module:enable` status** — that's application-wide, not per-customer. Instead, every business module's route group is wrapped in `['auth:sanctum', 'module.entitlement:<alias>']`, which asks `Modules\Core\Contracts\ModuleEntitlementChecker` (bound to `SubscriptionEntitlementChecker` in `CoreServiceProvider`) whether the current user may use that module. New business-module routes must go inside that already-gated group, not around it. See [docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md) § Independent purchasability.
+
+## Rule 3 — coding conventions
+
+- `declare(strict_types=1)` in every new PHP file.
+- Style: `composer lint` (Pint) before committing. Static analysis: `composer analyse` (Larastan) must be clean.
+- Controllers stay thin: **FormRequest → Service (calling a Repository) → API Resource**. No business logic in controllers, no validation logic outside FormRequests, no inline Eloquent queries in a Service for anything a Repository already owns. Full layering rationale (Gateway/Orchestration/Service/Repository, where caching and auth each belong): [docs/architecture/backend-layering.md](docs/architecture/backend-layering.md).
+- Authorization via Policies + `spatie/laravel-permission` roles/permissions. Never `if ($user->role === 'admin')`. `spatie/laravel-permission`'s `HasRoles` is reserved for `Modules\Core\Models\Admin` (the `admin` guard) only — never add it to `App\Models\User`. End-user capability (Project Owner/Supplier/ERP User) is computed, never stored — see [docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md) § User capability resolution.
+- Every new endpoint needs L5-Swagger OpenAPI attributes (ARCH-API, replaces Scramble — 2026-11-11) and `api:docs-coverage` passing; Pest tests only for critical paths (money/ledger, state machines, access isolation, OTP/confirmation) — superseded 2026-11-11: no per-endpoint test requirement.
+- Redis cache keys: `umrany:<module>:<entity>:<id>`. Horizon queues: `<module>-<priority>` (e.g. `ecommerce-high`, `ai-low`). Reverb channels: `private-<module>.<entity>.<id>`.
+- Don't build abstractions the current task doesn't need. Three similar lines beat a premature interface.
+- A trusted `Service`/`Repository` class setting a column deliberately excluded from a model's `#[Fillable(...)]` (e.g. `status`, `is_super_admin`, a foreign key the client must never set directly) must use `Model::forceCreate()`/`$model->forceFill(...)->save()`, never `create()`/`fill()` — the latter silently drops the value with no error. Doesn't apply inside `database/factories/*`; Eloquent factories bypass the guard internally.
+- Queued **listeners** (`implements ShouldQueue` on a class handling an event) use a different wiring convention than Jobs/Notifications: the queue name comes from a `viaQueue(): string` **method**, retry count from a `tries(): int` method — a plain `public $queue`/`$tries` property is silently ignored. Notifications and Jobs *do* use plain properties (`public $queue`, `public int $tries`) via their own `Queueable` trait — don't cross the two conventions.
+- A new module added to `Modules/*` must be added to **both** `databaseMigrationsPath` and `configDirectories` in `phpstan.neon`, or every new column/config value in that module's own `database/migrations`/`config` reads as a false-positive Larastan error unrelated to the actual code.
+- Translations live in root `lang/{locale}/`. **Never create `resources/lang/`** — its mere existence silently relocates the entire application's translation root (`Illuminate\Foundation\Application`'s path binding checks `resources/lang` before falling back to `lang/`), breaking every other translation lookup in the app, not just the one you meant to add.
+
+## Rule 4 — the Octane persistent-worker gotcha
+
+Octane workers stay booted across requests **and across a `composer require`/new-file-add until the container restarts** — this bit us during development: adding a new package or a new class doesn't take effect in an already-running worker.
+
+- Never put request/container state into a `singleton()` binding — use `scoped()` for anything per-request.
+- After adding routes/classes/config or requiring a new package while the stack is already running: `docker compose exec app php artisan octane:reload` first; if that errors or the container already crashed, `docker compose up -d app horizon reverb scheduler` to get fresh processes, then `docker compose restart nginx` (nginx caches the app container's IP and won't reconnect after a recreate on its own).
+- Enabling/disabling a module or changing `config/modules.php` requires the same reload — not just `cache:clear`.
+- In practice, `octane:reload` has not reliably picked up new routes/classes within the same debugging session — a full `docker compose restart app` has, every time. Don't spend long debugging "why isn't my change showing up" before trying a full restart.
+- The `admin` session guard's per-request `Auth::shouldUse()` mutation does **not** leak across requests in the same worker — `config/octane.php`'s `FlushAuthenticationState` listener resets it. Verified directly during implementation, not assumed; see `docs/architecture/admin-portal.md`.
+- This also applies to `dedoc/scramble`'s `/docs` — it analyses source files at request time inside the worker, so an edited docblock/`#[Group]`/`#[Response]` attribute needs the same reload/restart before it shows up; confirmed directly during the Scribe→Scramble migration (`docs/decisions/0023-scramble-over-scribe.md`).
+- **`docker compose restart app` is NOT enough after editing `.env`.** Code/route/class changes are read fresh from the bind-mounted volume on any process restart, but `env_file: .env` values are injected only at container *creation*, not on `restart`. A changed `.env` value (confirmed directly: a corrected `MAIL_MAILER`/`MAIL_HOST` still resolved to the old value after `restart`) needs `docker compose up -d --force-recreate app` (or `up -d` after the compose file itself changed) to actually take effect.
+- **Editing `docker/app/entrypoint.sh` or `docker/app/Dockerfile` needs a full `docker compose build app` before `--force-recreate` does anything** — both are `COPY`'d/baked into the image at build time, unlike almost everything else in this repo (which is bind-mounted and read live). `--force-recreate` alone just restarts a container from the *existing* image, silently keeping the old entrypoint/Dockerfile content. Confirmed directly: an entrypoint.sh edit (adding a `storage:link` boot step) had no effect across a `--force-recreate` until `docker compose build app` ran first.
+
+See [docs/architecture/infrastructure.md](docs/architecture/infrastructure.md).
+
+## Rule 5 — docs and CLAUDE.md files stay in sync with the code, in the same change
+
+Documentation in this repo is treated as load-bearing, not optional extra credit — a future Claude session (or engineer) is told to trust `docs/` over guessing, so stale docs actively mislead. **When you change something docs describe, update the doc in the same turn you make the change, not "later."** Concretely:
+
+- New/changed entity, table, or workflow in a module → update that `Modules/<Name>/CLAUDE.md`'s entity list/workflow section **and** the fuller `docs/modules/<name>.md`.
+- New/changed API convention (auth, envelope shape, versioning, error format) → `docs/api/conventions.md`.
+- New/changed architectural decision (a package swap, a new service, an infra change) → add or update a `docs/decisions/NNNN-*.md` ADR, and touch `docs/architecture/*.md` if the topology/tech-stack tables describe it.
+- New/changed cross-module contract, event, or the entitlement pattern → `docs/architecture/module-boundaries.md`.
+- New skill-worthy repeatable workflow → consider whether `.claude/skills/` needs a new or updated `SKILL.md`, and whether this file's **Skills** list below needs the new entry.
+- Business-facing change (revenue model, product scope, personas) → `docs/business/*.md`.
+
+If you're not sure a doc needs updating, err toward checking `docs/` for anything that mentions what you just touched (`grep -rl <keyword> docs/ Modules/*/CLAUDE.md`) rather than skipping the check. Before considering a task "done," run `.claude/skills/docs-sync-check` on what you changed.
+
+## Rule 6 — every new Eloquent model gets seed data in the same change
+
+Whenever you add a new model backed by its own table (not a pivot), add or extend that module's seeder in the same change — don't leave a model with zero rows producible outside manual testing. Concretely:
+
+- **Master/reference data** (a fixed or slowly-changing catalog — countries, currencies, categories, permissions) → a dedicated seeder method/class, idempotent (`updateOrCreate`/`firstOrCreate` keyed on a natural key), called from that module's `<Module>DatabaseSeeder`.
+- **A new business entity that needs a realistic example to exercise the feature** (a new Provider sub-entity, a new order status, ...) → extend `DemoUserSeeder` (or the equivalent demo seeder once other modules have one) so the seeded demo account actually exercises the new entity, not just the schema.
+- Every seeder must stay idempotent — it runs on every container boot (`docker/app/entrypoint.sh`, see `docs/architecture/infrastructure.md` § Startup), not once. `create()` is wrong here; `updateOrCreate`/`firstOrCreate` is right.
+- If the new model needs its own permission(s) to be admin-manageable, add them to `PermissionSeeder` in the same change, not speculatively ahead of the screen that uses them (Rule 0).
+- `.claude/skills/laravel-migration` already covers migration mechanics; treat "does this need a seeder" as a standing checklist item every time that skill runs, not a separate ask.
+
+## Rule 7 — migration policy (updated 2026-11-17, ADR-0034)
+
+UMR-002 rewrites every migration into a clean, guard-free baseline (no `hasTable`/`hasColumn` guards — they hid
+ordering bugs and made `migrate:fresh` non-deterministic). The edit-in-place policy below stays valid **only until the first
+staging deploy** (recorded in ADR-0034); afterwards every schema change is a new, additive, reversible migration, because
+staging (and later production) holds data that `migrate:fresh` would destroy. Lookup tables (`lkp_*`) are generated —
+see Rule 11 below and the `lookup-table` skill.
+
+### Historical text (pre-baseline) — dev-phase migration policy: edit in place, then reset the database
+
+This project has no production deployment and no real user data yet — every environment's database
+is disposable. Until the user says otherwise (e.g. after a real production launch), schema changes
+to a table this project itself introduced don't need a new incremental follow-on migration for
+every tweak:
+
+- **Edit the original migration file directly** (the one that created or last meaningfully changed
+  the table) instead of layering another `ALTER TABLE`-style migration on top of it. Keep the
+  table's schema defined in one place, the way it would have looked if written correctly the first
+  time.
+- After editing, **drop and recreate** the affected database so the edited migration runs cleanly:
+  `docker compose exec app php artisan migrate:fresh --seed` (whole dev DB) is the normal move.
+  This is destructive (drops all data in that environment) — same as any other destructive action,
+  don't run it against an environment that might hold real work without checking first.
+- **Data remaps also don't need a one-time migration** — if a change (like a permission catalog
+  reshape) would otherwise need a `Permission::findOrCreate`/data-transform migration to preserve
+  already-seeded rows, just edit the seeder/config and reseed from scratch instead; idempotent
+  seeders already reproduce the target state from their single source of truth.
+- This does **not** relax `.claude/skills/laravel-migration`'s normal safety guidance (`down()`,
+  indexing, FK checks) for genuinely new tables/columns — it only means: don't feel obliged to
+  write a careful, non-destructive follow-on migration just to adjust a table this same project
+  added a few migrations ago with no real data behind it.
+- The moment any environment holds data worth preserving across a migration change, this rule
+  stops applying there — revert to normal additive/reversible migration practice for that
+  environment going forward.
+
+## Rule 8 — the standing engineering bar for every non-trivial feature request
+
+This applies by default to every feature request in this repo — it does not need to be restated
+per request. Several of these point back at rules already stated above; they're gathered here as
+one checklist so a request phrased casually ("add X") still gets held to the same bar as one that
+spells all of this out.
+
+- **Architecture first, every time.** Follow the modular structure (Rules 1–2) and this project's
+  established layering — FormRequest → Service (calling a Repository) → API Resource (Rule 3,
+  `docs/architecture/backend-layering.md`). Don't improvise a different shape because it's faster
+  for one request; consistency across the codebase matters more than any single request's speed.
+- **Hold a high quality bar.** Write every change as if it will get a real, adversarial review —
+  correct edge cases, no silently-swallowed failure modes, no speculative half-finished paths.
+  When a shortcut and a more rigorous approach are both available, default to the more rigorous
+  one unless the user asked for a quick/throwaway version specifically.
+- **Think like an engineer, not a literal code-completion request.** A feature request implies its
+  surrounding business workflow, validation rules, notification/audit needs, and edge cases — see
+  how `docs/business/*.md` and each module's FR groupings in `docs/modules/*.md` frame
+  requirements. Don't implement only the literal line asked for if the feature obviously needs
+  more to actually work end-to-end (the way `docs/decisions/*.md` ADRs capture "we also had to
+  decide X and Y" for past features). If broadening scope this way would be a large amount of
+  extra work, say so and confirm before building all of it — don't silently go quiet on the
+  tradeoff either way.
+- **Check subscription entitlement and RBAC on every new surface.** Does this feature need
+  `module.entitlement:<alias>` gating (Rule 2)? Does it need new admin permissions in
+  `Modules/Core/config/permissions.php` (the five-action-per-resource pattern, or a smaller,
+  explicitly-documented subset — see `docs/decisions/0009-granular-crud-admin-permissions.md` and
+  its `users.*` exception in `docs/architecture/admin-portal.md`)? Never ship a feature that
+  quietly bypasses either system because it wasn't top of mind.
+- **Consider both sides of the admin/API split.** A feature touching end-user-visible data often
+  needs both an API surface (`Modules/<X>/routes/api.php`) and admin-portal visibility/management
+  (`routes/admin.php`, `resources/views/admin`, per `docs/architecture/admin-portal.md`). Decide
+  deliberately whether one, both, or neither applies — don't build only the side that happened to
+  be asked about if the other is obviously implied by what the feature is for.
+- **Seed data in the same change, not as a follow-up** (Rule 6) — a new model with zero seeded
+  rows isn't done yet.
+- **Stay inside the existing convention system.** This repo's `CLAUDE.md` files, `docs/`, and
+  `.claude/skills/*` are load-bearing, not optional background — read the ones relevant to what
+  you're touching before assuming a pattern, and run the matching skill
+  (`.claude/skills/docs-sync-check`, `module-boundary-check`, `laravel-migration`,
+  `laravel-endpoint`, `laravel-job`) where it applies, not only when explicitly told to.
+- **Documentation is part of "done," not a separate ask** (Rule 5) — update the relevant
+  `Modules/<X>/CLAUDE.md`, `docs/modules/<x>.md`, and — for a real architectural or business
+  decision — a new `docs/decisions/NNNN-*.md` ADR, in the same change the code changes.
+
+## Rule 9 — soft-delete by default; every API route stays versioned
+
+Two standing defaults, made permanent after a system-wide pass fixed the gaps where they weren't
+yet applied (see `docs/decisions/0014-user-soft-deletes-and-partial-unique-indexes.md` for the
+original pattern and its later extension).
+
+- **Every new Eloquent model backed by its own table defaults to `SoftDeletes`.** Skip it only for
+  one of these specific, documented shapes — not a general "doesn't feel necessary" judgment call:
+  an append-only/immutable log (e.g. `PasswordHistory`), a singleton config row (e.g.
+  `SiteSetting`), a security-sensitive secret/credential whose recoverability would itself be a
+  regression (e.g. `UserMfaSetting`, `MfaRecoveryCode` — these already hard-delete-and-replace on
+  disable/regenerate, deliberately), or a dependent/owned record with no independent deletion
+  semantics of its own (e.g. `UserProfile`, always removed only via its parent `User`). When you
+  skip it, say so in a one-line comment on the model — see any of the models just named for the
+  pattern to match.
+- **Any unique constraint on a soft-deletable table must be a partial unique index excluding
+  trashed rows** (`CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL`), never a plain unique index —
+  a plain one permanently blocks re-registration/re-creation under the same value after a
+  soft-delete, exactly the bug this rule's origin ADR fixed for `users`, then `admins`/`providers`.
+  This specific `IS NULL` condition needs no Postgres/SQLite driver branching (unlike a
+  boolean-literal partial condition, e.g. a `is_default`-style singleton flag — see
+  `docs/decisions/0020-database-backed-platform-defaults.md`).
+- **Every new API route must be registered under a versioned prefix**
+  (`/api/v{n}/<module-alias>/...`), matching the existing per-module `routes/api.php` convention
+  (`docs/api/conventions.md` § Versioning and routing). `tests/Feature/ApiVersioningTest.php`
+  enforces this automatically — it fails if any route in the `api` middleware group isn't
+  versioned. Treat a failure there as a hard blocker to fix the route, never as a test to loosen or
+  delete.
+
+## Rule 10 — every list endpoint gets pagination and filters by default
+
+Made permanent after a system-wide pass found `spatie/laravel-query-builder` sitting in
+`composer.json` and documented in `docs/api/conventions.md` as "the" filtering convention, yet
+completely unused anywhere in real code — see `docs/decisions/0029-centralized-notification-
+service-and-api-locale.md`.
+
+- **Every new or modified list/index API endpoint uses `Spatie\QueryBuilder\QueryBuilder`
+  (`QueryBuilder::for(...)->allowedFilters(...)`) and gets real pagination (`->paginate(...)`) by
+  default.** Filters are passed to `allowedFilters()` as separate variadic arguments, never as a
+  single array literal (`->allowedFilters($f1, $f2)`, not `->allowedFilters([$f1, $f2])`) — the
+  method is genuinely variadic, and passing an array where a spread was needed is a silent runtime
+  bug, not just a style nit (confirmed directly: Larastan's `argument.type` check catches it, but
+  only because the signature is typed — reasoning about it by eye is easy to get wrong).
+- **The only exception is a provably small, bounded reference/master-data list meant to back a
+  picker/dropdown UI** — the existing `GET /countries`, `.../cities`, `GET /currencies` are the
+  named precedent. Those stay unpaginated but still gain filters (typically a `filter[search]`
+  partial-match). Reaching for this exception must be a deliberate, stated call each time
+  ("this list is a bounded picker, not open-ended browsing"), never a default just because
+  pagination feels like more work.
+- **A new paginated response returns a Resource collection directly**
+  (`SomeResource::collection($paginator)`) **as the response, never a hand-built `{data, meta:
+  {...}}` array.** Laravel's own `AnonymousResourceCollection` already produces the full standard
+  `data`+`links`+`meta` shape `docs/api/conventions.md` documents when wrapping a
+  `LengthAwarePaginator` this way — a hand-built `meta` array reliably ends up with fewer than the
+  standard 6 keys and no `links` at all (confirmed directly: this had already happened to
+  `GET /me/notifications` before this rule existed).
+- Every `filter[...]`/`per_page` query param on a touched endpoint gets a `#[QueryParameter(...)]`
+  Scramble attribute — `docs/decisions/0023-scramble-over-scribe.md` already notes these need
+  hand-written attributes to appear in generated docs at all; this was true before this rule, just
+  never exercised since nothing used the query builder yet.
+
+
+
+## Rule 11 — lookups are generated from the seed workbook (2026-11-17, ADR-0034)
+
+Why: UMR-002 acceptance requires every lookup value to be traceable to the client's workbook (sheet + row) and forbids
+guessing values the SRS leaves undefined. Hand-typed seeders drift silently (a renamed label, a flipped Active flag) and
+nobody notices until UAT. So the workbook is exported to JSON by `implementation-plan/.tools/workbook/wb_export.py`,
+the JSON is committed and protected by a PreToolUse hook, seeders only read it, and `core:lookups:verify` (CI) fails on any
+difference between DB, JSON and PHP enums. Open values are rows with `value_status=open` + the open-decision id, and
+consumers fail closed (no feature runs on an invented number). Details: implementation plan `features/F-LKP-*.md`.

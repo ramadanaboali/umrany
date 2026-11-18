@@ -1,6 +1,6 @@
 ---
 name: laravel-endpoint
-description: Scaffold a new Umrany API endpoint (Controller + FormRequest + API Resource + route + Scramble annotations + Pest test) following project conventions. Use when adding any new API route to a module.
+description: Scaffold a new Umrany API endpoint (Controller + FormRequest + API Resource + route + L5-Swagger OpenAPI attributes, Pest test only for critical paths) following project conventions. Use when adding any new API route to a module.
 ---
 
 # Scaffold a new API endpoint
@@ -34,56 +34,38 @@ docker compose exec app php artisan module:make-test <Name>Test <Module> --pest
 
 Add it inside `Modules/<Module>/routes/api.php`, inside the existing `Route::prefix('v1/<module-alias>')->name('<module-alias>.')->group(...)` block. Follow the existing REST naming inside that group.
 
-## 5. Document it for Scramble
+## 5. Document it with L5-Swagger (ARCH-API, decided 2026-11-11 — replaces Scramble)
 
-`dedoc/scramble` infers most of the shape automatically from the FormRequest and Resource — don't
-re-describe what it already infers. Two things to actually add:
+L5-Swagger (`darkaonline/l5-swagger`, swagger-php **PHP 8 attributes**, never docblock annotations) is installed by
+NFR.19 at the start of UMR-004. Until then Scramble still serves `/docs`; write the attributes anyway.
 
-1. A class-level group attribute, once per controller (skip if the controller already has one):
-
-   ```php
-   #[\Dedoc\Scramble\Attributes\Group('<Module> / <Entity>', weight: N)]
-   final class <Name>Controller extends Controller
-   ```
-
-2. In the FormRequest's `rules()`, a `/** ... */` doc-comment directly above any field whose name
-   alone doesn't make its meaning/format obvious (skip fields like `name`/`status` that don't need
-   one):
-
-   ```php
-   /**
-    * Short client-facing description.
-    *
-    * @example value
-    */
-   'field_name' => ['required', 'string'],
-   ```
-
-Only reach for a hand-written `#[\Dedoc\Scramble\Attributes\Response(status, description:,
-examples:)]` on the controller method when a response's meaning can't be inferred — typically a
-message added via the FormRequest's `after()` closure rather than `rules()`, or one thrown by a
-Service method (prefer a `@throws` PHPDoc tag on that Service method first; Scramble reads through
-one level of method calls). No `@authenticated` tag needed — bearer-auth requirements are derived
-automatically from the route's `auth:sanctum` middleware.
-
-Scramble auto-matches every route under `api/*` (`config('scramble.api_path')`) — no per-module
-config needed. Nothing to regenerate — spot-check `/docs`, which is generated live on every
-request. If you edited a docblock/attribute while the stack was already running, reload Octane
-first (root `CLAUDE.md` Rule 4) or the change won't show up.
+- **Operation** on the controller method: `#[OA\Get(path: '/api/v1/<alias>/...', tags: ['<Module>/<Resource>'], ...)]`
+  (+ `security: [['sanctum' => []]]` for protected routes; reference shared parameters `X-Acting-Context`, `Accept-Language`).
+- **Request schema** on the FormRequest class (`#[OA\Schema]` with properties + examples); **response schema** on the API
+  Resource; envelope/pagination/error/security components live once in `app/OpenApi/`.
+- **Which document:** user/public routes → `user` doc; `/api/v1/admin/*` → `admin` doc.
+- Generate + check: `docker compose exec app php artisan l5-swagger:generate --all` and `php artisan api:docs-coverage`
+  (fails if any api route has no operation). Then `composer api:sync` to refresh the Postman collections in
+  `/Users/ramadan/Umrany/postman/`.
+- Lookups in requests: validate with `Rule::exists('lkp_<x>', 'code')` and document the allowed codes by reference to the
+  lookup (never paste the workbook list into the schema — it would drift).
 
 ## 6. Update the module docs (not optional — root `CLAUDE.md` Rule 5)
 
 - If this endpoint introduces a new entity/field, add it to `Modules/<Module>/CLAUDE.md`'s entity list **and** `docs/modules/<module-alias>.md`.
 - If this endpoint establishes a new *pattern* (not just another CRUD endpoint using existing conventions — e.g. a new pagination style, a new error shape, a new auth flow), update `docs/api/conventions.md` too.
-- If it's genuinely just one more endpoint following patterns already documented, no doc change is needed beyond the Scramble annotations from step 5 — don't pad docs with restating what's already covered.
+- If it's genuinely just one more endpoint following patterns already documented, no doc change is needed beyond the OpenAPI attributes from step 5 — don't pad docs with restating what's already covered.
 
-## 7. Test it
+## 7. Verify it (tests only for critical paths)
 
-Write the Pest feature test in the generated `<Name>Test.php` (`Modules/<Module>/tests/Feature/`): happy path, one authorization-denied case, one validation-failure case. Run:
+Test policy: write a Pest test **only** when the endpoint is a critical path — money/ledger, a
+multi-transition state machine, access-control isolation (acting context, entitlement, company
+groups, admin permission), or an OTP/confirmation flow — or when the plan's story lists a
+critical-path test task. Skip the `module:make-test` step otherwise.
 
-```bash
-docker compose exec app ./vendor/bin/pest --filter=<Name>Test
-```
+Always verify manually: curl the endpoint for the happy path, one denied case and one invalid case
+(after `docker compose restart app`), and check the response envelope and status codes. If a test
+was written: `docker compose exec app ./vendor/bin/pest --filter=<Name>Test`.
 
 ## 8. Before considering it done
 

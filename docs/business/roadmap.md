@@ -1,5 +1,10 @@
 # Product & Engineering Roadmap
 
+> ⚠️ **Superseded (2026-11-17).** This roadmap was written from SRS v0.1. Delivery order is now the Trello board
+> (8 sprints, cards UMR-001…071, PRD v1.1 / SRS v1.3) tracked in the external implementation plan:
+> `/Users/ramadan/Umrany/implementation-plan/NOW.md` (live position) and `03-where-we-are.md` (business view).
+> Kept for history only — do not plan from it.
+
 This is the answer to "what order do we build this in, and why" — grounded in the business model (`business-model.md`), the module entity/workflow docs (`docs/modules/*.md`), and the dependency structure already encoded in the codebase (`docs/architecture/module-boundaries.md`). It exists so that starting a new phase is a decision to *scope down* (pick the next phase below), not a decision to invent priorities from scratch.
 
 ## How to read this

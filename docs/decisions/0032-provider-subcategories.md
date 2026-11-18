@@ -1,5 +1,7 @@
 # 32. Provider subcategories, seeded and optional
 
+> ⚠️ **Superseded 2026-11-17** by ADR-0034 (table design → `lkp_provider_categories` tree) and PRD-FR-006 #6 / UMR-009 AC6 (business rule → at least one main category **and** one or more subcategories are **mandatory**).
+
 ## Status
 
 Accepted
